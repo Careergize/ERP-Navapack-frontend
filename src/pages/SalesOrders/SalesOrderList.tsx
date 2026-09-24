@@ -126,7 +126,10 @@ export function SalesOrderList() {
   useEffect(() => {
     api
       .get<SalesOrder[]>("/sales-orders/")
-      .then(({ data }) => setOrders(data))
+      .then(({ data }) => {
+        if (!Array.isArray(data)) throw new Error("Sales orders API returned an invalid response");
+        setOrders(data);
+      })
       .catch(() => {
         // No backend yet in demo mode — fall back to mock data instead of an empty screen.
         setOrders(MOCK_SALES_ORDERS);

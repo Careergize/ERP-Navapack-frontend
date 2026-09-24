@@ -13,7 +13,10 @@ export function JobCardList() {
   useEffect(() => {
     api
       .get<JobCard[]>("/job-cards/")
-      .then(({ data }) => setCards(data))
+      .then(({ data }) => {
+        if (!Array.isArray(data)) throw new Error("Job cards API returned an invalid response");
+        setCards(data);
+      })
       .catch(() => setCards(MOCK_JOB_CARDS))
       .finally(() => setLoading(false));
   }, []);
