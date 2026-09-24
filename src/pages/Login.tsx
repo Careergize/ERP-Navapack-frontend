@@ -76,24 +76,23 @@ export function Login() {
           </button>
         </form>
 
-        {import.meta.env.DEV && (
-          <div className="mt-6 border-t border-gray-100 pt-5">
-            <p className="mb-3 text-center text-xs text-gray-400">
-              Demo mode — sign in as a role, no backend required
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {DEMO_ROLES.map(({ role, label }) => (
-                <button
-                  key={role}
-                  onClick={() => handleDemoLogin(role)}
-                  className="rounded-card border border-gray-200 py-2 text-xs font-medium text-ink hover:border-blue hover:text-blue"
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+        <div className="mt-6 border-t border-gray-100 pt-5">
+          <p className="mb-3 text-center text-xs text-gray-400">
+            Demo mode — sign in as a role, no backend required
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {DEMO_ROLES.map(({ role, label }) => (
+              <button
+                key={role}
+                type="button"
+                onClick={() => handleDemoLogin(role)}
+                className="rounded-card border border-gray-200 py-2 text-xs font-medium text-ink hover:border-blue hover:text-blue"
+              >
+                {label}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
