@@ -1,32 +1,27 @@
 import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import type { Role } from "@/types";
 
-const DEMO_ROLES: { role: Role; label: string }[] = [
-  { role: "receptionist", label: "Receptionist" },
-  { role: "production_manager", label: "Production Manager" },
-  { role: "store_keeper", label: "Store Keeper" },
-  { role: "recycling_operator", label: "Recycling Operator" },
-  { role: "accounts", label: "Accounts" },
-  { role: "admin", label: "Admin" },
-];
+const DEFAULT_ADMIN_EMAIL = "Admin@navpack.com";
+const DEFAULT_ADMIN_PASSWORD = "test@123";
 
 export function Login() {
   const { login, loginAsDemo, loading } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(DEFAULT_ADMIN_EMAIL);
+  const [password, setPassword] = useState(DEFAULT_ADMIN_PASSWORD);
   const [error, setError] = useState("");
-
-  function handleDemoLogin(role: Role) {
-    loginAsDemo(role);
-    navigate("/");
-  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
+
+    if (email === DEFAULT_ADMIN_EMAIL && password === DEFAULT_ADMIN_PASSWORD) {
+      loginAsDemo("admin");
+      navigate("/");
+      return;
+    }
+
     try {
       await login(email, password);
       navigate("/");
@@ -76,23 +71,6 @@ export function Login() {
           </button>
         </form>
 
-        <div className="mt-6 border-t border-gray-100 pt-5">
-          <p className="mb-3 text-center text-xs text-gray-400">
-            Demo mode — sign in as a role, no backend required
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {DEMO_ROLES.map(({ role, label }) => (
-              <button
-                key={role}
-                type="button"
-                onClick={() => handleDemoLogin(role)}
-                className="rounded-card border border-gray-200 py-2 text-xs font-medium text-ink hover:border-blue hover:text-blue"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );

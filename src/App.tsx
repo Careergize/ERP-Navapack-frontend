@@ -7,6 +7,7 @@ import { SalesOrderList } from "@/pages/SalesOrders/SalesOrderList";
 import { JobCardList } from "@/pages/JobCards/JobCardList";
 import { JobCardDetail } from "@/pages/JobCards/JobCardDetail";
 import { TrackTrace } from "@/pages/TrackTrace/TrackTrace";
+import { StockPage } from "@/pages/Stocks/stocks";
 import { Placeholder } from "@/pages/Placeholder";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -32,7 +33,7 @@ function AppRoutes() {
         <Route path="/sales-orders/new" element={<Placeholder title="New Sales Order" />} />
         <Route path="/job-cards" element={<JobCardList />} />
         <Route path="/job-cards/:id" element={<JobCardDetail />} />
-        <Route path="/stock" element={<Placeholder title="Stock" />} />
+        <Route path="/stock" element={<StockPage />} />
         <Route path="/recycling" element={<Placeholder title="Recycling" />} />
         <Route path="/costing" element={<Placeholder title="Costing" />} />
         <Route path="/masters" element={<Placeholder title="Masters" />} />
