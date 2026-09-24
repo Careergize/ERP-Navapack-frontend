@@ -58,3 +58,46 @@ export interface TraceResult {
   currentStage?: Stage;
   history: { label: string; timestamp: string }[];
 }
+
+export interface WasteEntry {
+  id: string;
+  jobCardNumber: string;
+  stage: Stage;
+  wasteQty: number;
+  unit: "kg";
+  wasteType: string;
+  sentToRecycling: boolean;
+  date: string;
+}
+
+export interface GranulesBatch {
+  id: string;
+  batchNumber: string;
+  date: string;
+  inputWasteQty: number;
+  granulesProducedKg: number;
+  destination: "Restocked as raw material" | "Sold externally" | "Partially sold";
+  reEnteredQty?: number;
+  soldQty?: number;
+  soldTo?: string;
+}
+
+export interface CostingRecord {
+  id: string;
+  itemOrModel: string;
+  rawMaterialCost: number;
+  productionCost: number;
+  otherCost: number;
+  currency: "USD" | "NGN" | "GHS" | "ZAR";
+  exchangeRateUsed: number;
+  totalCostLocal: number;
+  lastUpdated: string;
+}
+
+export interface ExchangeRate {
+  id: string;
+  currency: string;
+  rate: number;
+  date: string;
+  enteredBy: string;
+}

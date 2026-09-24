@@ -1,7 +1,7 @@
 import { FormEvent, useState } from "react";
 import { Search } from "lucide-react";
 import { api } from "@/lib/api";
-import { MOCK_TRACE_RESULT } from "@/lib/mockData";
+import { MOCK_TRACE_RESULTS } from "@/lib/mockData";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { TraceResult } from "@/types";
@@ -12,20 +12,35 @@ export function TrackTrace() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSearch(e: FormEvent) {
-    e.preventDefault();
-    if (!query.trim()) return;
+  async function searchTrace(value: string) {
+    const normalizedQuery = value.trim().toUpperCase();
+    if (!normalizedQuery) return;
     setLoading(true);
     setError("");
+    setResult(null);
     try {
-      const { data } = await api.get<TraceResult>(`/trace/${encodeURIComponent(query)}/`);
+      const { data } = await api.get<TraceResult>(`/trace/${encodeURIComponent(normalizedQuery)}/`);
       setResult(data);
     } catch {
-      // No backend yet in demo mode — show mock data for any query so the flow is demoable.
-      setResult(MOCK_TRACE_RESULT);
+      const mockResult = MOCK_TRACE_RESULTS[normalizedQuery];
+      if (mockResult) {
+        setResult(mockResult);
+      } else {
+        setError(`No record found for “${normalizedQuery}”.`);
+      }
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleSearch(e: FormEvent) {
+    e.preventDefault();
+    void searchTrace(query);
+  }
+
+  function handleExampleClick(exampleId: string) {
+    setQuery(exampleId);
+    void searchTrace(exampleId);
   }
 
   return (
@@ -50,6 +65,20 @@ export function TrackTrace() {
           <Search size={16} /> {loading ? "Searching…" : "Search"}
         </button>
       </form>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Example trace IDs">
+        <span className="text-xs text-gray-500">Try an example:</span>
+        {["SO-1042", "JC-2201", "RM-8834", "GB-0501"].map((exampleId) => (
+          <button
+            key={exampleId}
+            type="button"
+            onClick={() => handleExampleClick(exampleId)}
+            className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:border-navy hover:text-navy"
+          >
+            {exampleId}
+          </button>
+        ))}
+      </div>
 
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 

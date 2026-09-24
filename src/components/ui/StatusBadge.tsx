@@ -9,6 +9,8 @@ const STATUS_STYLES: Record<string, string> = {
   Completed: "bg-green/10 text-green",
   Complete: "bg-green/10 text-green",
   Open: "bg-blue/10 text-blue",
+  "Sent to Recycling": "bg-green/10 text-green",
+  "Awaiting Pickup": "bg-navy/10 text-navy",
 };
 
 export function StatusBadge({ status }: { status: string }) {
