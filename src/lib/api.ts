@@ -2,8 +2,10 @@ import axios from "axios";
 
 // Point this at your DRF backend. Injected via .env as VITE_API_BASE_URL
 // so the same build can target dev/staging/prod without a code change.
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? "http://localhost:8000/api" : "/api");
+
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api",
+  baseURL: apiBaseUrl,
 });
 
 api.interceptors.request.use((config) => {
