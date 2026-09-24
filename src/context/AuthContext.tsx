@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from "react";
-import { api } from "@/lib/api";
+import { loginRequest } from "@/lib/api";
 import type { Role, User } from "@/types";
 
 interface AuthContextValue {
@@ -29,9 +29,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(email: string, password: string) {
     setLoading(true);
     try {
-      const { data } = await api.post("/auth/login/", { email, password });
-      localStorage.setItem("navapack_token", data.token);
-      setUser(data.user);
+      const data = await loginRequest({ username: email, password });
+      localStorage.setItem("navapack_access", data.access);
+      localStorage.setItem("navapack_refresh", data.refresh);
+      setUser({
+        id: String(data.user?.id ?? email),
+        name: data.user?.name ?? data.user?.username ?? email,
+        role: (data.user?.role as Role) ?? "receptionist",
+        department: data.user?.department,
+      });
     } finally {
       setLoading(false);
     }
@@ -46,6 +52,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function logout() {
     localStorage.removeItem("navapack_token");
+    localStorage.removeItem("navapack_access");
+    localStorage.removeItem("navapack_refresh");
     setUser(null);
   }
 

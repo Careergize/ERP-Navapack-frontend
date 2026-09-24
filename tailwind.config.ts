@@ -5,12 +5,13 @@ export default {
   theme: {
     extend: {
       colors: {
-        navy: "#1B3A6B",
-        blue: "#2E7DB5",
-        teal: "#4C9A8E",
-        green: "#7AB648",
-        ink: "#4A4A4A",
-        surface: "#F7F8FA",
+        navy: "#1A3764",
+        blue: "#1567A9",
+        teal: "#31A8E0",
+        green: "#3AAA35",
+        lime: "#94C11F",
+        ink: "#3D3D3C",
+        surface: "#F5F8FA",
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],

@@ -9,6 +9,7 @@ import {
   Search,
   Settings,
   LogOut,
+  Bell,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import type { Role } from "@/types";
@@ -36,22 +37,28 @@ export function AppShell() {
   const items = NAV_ITEMS.filter((item) => !user || item.roles.includes(user.role));
 
   return (
-    <div className="flex min-h-screen bg-surface">
-      <aside className="flex w-60 flex-col border-r border-gray-100 bg-white">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_72%_0%,#2dbb4c_0%,#16803d_42%,#0b3c2a_100%)] p-3 sm:p-5">
+      <div className="flex min-h-[calc(100vh-2rem)] overflow-hidden rounded-[24px] bg-[#f5f8f5] shadow-2xl shadow-emerald-950/25">
+      <aside className="flex w-[230px] shrink-0 flex-col bg-[#102d24] text-white">
         <div className="flex items-center gap-2 px-5 py-6">
-          <div className="h-8 w-8 rounded bg-gradient-to-br from-navy via-teal to-green" />
-          <span className="text-lg font-semibold text-navy">Nava Pack</span>
+          <img src="/assets/Nava-logo.png" alt="NavaPack" className="h-8 w-auto max-w-[155px] object-contain" />
+        </div>
+
+        <div className="mx-4 mb-5 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-white/45">Active workspace</p>
+          <p className="mt-1 text-xs font-medium text-white/90">NavaPack Operations</p>
         </div>
 
         <nav className="flex-1 space-y-1 px-3">
+          <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">Navigation</p>
           {items.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
               end={to === "/"}
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-card px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive ? "bg-navy/10 text-navy" : "text-ink hover:bg-surface"
+                `flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-colors ${
+                  isActive ? "bg-[#b7efbd] text-[#123b29]" : "text-white/65 hover:bg-white/10 hover:text-white"
                 }`
               }
             >
@@ -61,21 +68,32 @@ export function AppShell() {
           ))}
         </nav>
 
-        <div className="border-t border-gray-100 px-5 py-4">
-          <p className="text-sm font-medium text-navy">{user?.name}</p>
-          <p className="text-xs capitalize text-gray-500">{user?.role.replace("_", " ")}</p>
+        <div className="border-t border-white/10 px-5 py-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-xs font-semibold">{user?.name?.slice(0, 1)}</div>
+            <div className="min-w-0">
+              <p className="truncate text-xs font-medium text-white">{user?.name}</p>
+              <p className="truncate text-[10px] capitalize text-white/45">{user?.role.replace("_", " ")}</p>
+            </div>
+          </div>
           <button
             onClick={logout}
-            className="mt-3 flex items-center gap-2 text-sm text-gray-500 hover:text-navy"
+            className="mt-4 flex items-center gap-2 text-xs text-white/45 hover:text-white"
           >
             <LogOut size={14} /> Sign out
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto p-8">
-        <Outlet />
+      <main className="min-w-0 flex-1 overflow-y-auto bg-[#f5f8f5]">
+        <div className="flex items-center justify-end gap-4 border-b border-[#e6eee8] px-5 py-4 sm:px-8">
+          <button className="relative rounded-full p-2 text-[#668075] hover:bg-white" aria-label="Notifications"><Bell size={17} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#40bd5b]" /></button>
+          <div className="h-7 w-px bg-[#dce8df]" />
+          <span className="text-xs text-[#668075]">Operations overview</span>
+        </div>
+        <div className="p-5 sm:p-8"><Outlet /></div>
       </main>
+      </div>
     </div>
   );
 }

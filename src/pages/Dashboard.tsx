@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/Card";
 import { useAuth } from "@/context/AuthContext";
+import { BarChart3, Leaf, MoreHorizontal, Plus } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Demo-mode placeholder data — replace with real aggregates once the backend is live.
@@ -236,7 +237,6 @@ const TREND_STYLE: Record<Trend, string> = {
 };
 
 const fmt = (n: number) => n.toLocaleString("en-IN");
-const roleLabel = (role: string) => role.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 const initials = (name: string) =>
   name
     .split(" ")
@@ -540,62 +540,60 @@ export function Dashboard() {
     <div className="space-y-6">
       {/* Header */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
-          {user && (
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-navy text-sm font-semibold text-white">{initials(user.name)}</div>
-          )}
-          <div>
-            <h1 className="text-2xl font-semibold text-navy">{user ? `Welcome back, ${user.name.split(" ")[0]}` : "Dashboard"}</h1>
-            <p className="mt-0.5 text-sm text-gray-500">
-              {today}
-              {user && <span className="ml-2 rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{roleLabel(role)}</span>}
-            </p>
-          </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#6b8577]">{monthLabel} · sustainability operations</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-[#173b2d]">Good morning, {user?.name.split(" ")[0] ?? "there"}</h1>
+          <p className="mt-1 text-sm text-[#7c9186]">Here’s the latest pulse across your packaging operation.</p>
         </div>
-
-        {ROLE_ACTION[role] && (
-          <button
-            type="button"
-            onClick={() => navigate(ROLE_ACTION_PATH[role])}
-            className="inline-flex items-center justify-center rounded-lg bg-navy px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-2"
-          >
-            {ROLE_ACTION[role]}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <span className="hidden rounded-full bg-white px-3 py-2 text-xs font-medium text-[#678074] shadow-sm sm:inline">{today}</span>
+          {ROLE_ACTION[role] && (
+            <button type="button" onClick={() => navigate(ROLE_ACTION_PATH[role])} className="inline-flex items-center gap-2 rounded-xl bg-[#163d2f] px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#245741]">
+              <Plus size={15} /> {ROLE_ACTION[role]}
+            </button>
+          )}
+        </div>
       </header>
 
       {/* KPI widgets */}
-      <section aria-label="Key numbers" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {widgets.map((w) => (
-          <Card key={w.label}>
-            <div className="flex items-start justify-between">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-navy">
-                <Icon name={w.icon} />
-              </div>
-              {w.spark && <Sparkline data={w.spark} className={w.trend ? TREND_STYLE[w.trend] : "text-gray-400"} />}
+      <section aria-label="Key numbers" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {widgets.map((w, index) => (
+          <Card key={w.label} className={`overflow-hidden border-0 p-4 shadow-sm ${index === 0 ? "bg-[#102d24] text-white" : "bg-white"}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${index === 0 ? "bg-[#285e42] text-[#83e997]" : "bg-[#e9f6eb] text-[#36a752]"}`}><Icon name={w.icon} className="h-4 w-4" /></div>
+              {w.spark && <Sparkline data={w.spark} className={index === 0 ? "text-[#6cdb7d]" : w.trend ? TREND_STYLE[w.trend] : "text-gray-400"} />}
             </div>
-            <p className="mt-4 text-sm text-gray-500">{w.label}</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight text-navy">{w.value}</p>
-            {w.delta && (
-              <p className={`mt-1 text-xs font-medium ${w.trend ? TREND_STYLE[w.trend] : "text-gray-500"}`}>
-                {w.trend === "up" && "▲ "}
-                {w.trend === "down" && "▼ "}
-                {w.delta}
-              </p>
-            )}
+            <p className={`mt-5 text-xs ${index === 0 ? "text-white/60" : "text-[#87988f]"}`}>{w.label}</p>
+            <p className={`mt-1 text-2xl font-semibold tracking-tight ${index === 0 ? "text-white" : "text-[#173b2d]"}`}>{w.value}</p>
+            {w.delta && <p className={`mt-1 text-[11px] font-medium ${index === 0 ? "text-[#81e193]" : w.trend ? TREND_STYLE[w.trend] : "text-gray-500"}`}>{w.trend === "up" && "↗ "}{w.trend === "down" && "↘ "}{w.delta}</p>}
           </Card>
         ))}
       </section>
 
-      {has("workflow") && <WorkflowSection />}
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.65fr_1fr]">
+        <Card className="border-0 bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex items-start justify-between">
+            <div><div className="flex items-center gap-2"><BarChart3 size={16} className="text-[#3ab958]" /><h2 className="text-sm font-semibold text-[#173b2d]">Production flow</h2></div><p className="mt-1 text-xs text-[#8a9a91]">Output across the last 8 working weeks</p></div>
+            <button className="rounded-lg p-1 text-[#8a9a91] hover:bg-[#f2f7f3]" aria-label="More production options"><MoreHorizontal size={18} /></button>
+          </div>
+          <div className="mt-5 flex h-40 items-end gap-2 rounded-xl bg-[#fbfdfb] px-3 pb-3 pt-5 sm:gap-3">
+            {[42, 55, 38, 70, 54, 82, 67, 91, 76, 87, 68, 96, 82, 100, 88, 94].map((height, i) => <div key={i} className={`flex-1 rounded-t-md ${i > 7 ? "bg-[#43c45b]" : "bg-[#ccebd1]"}`} style={{ height: `${height}%` }} />)}
+          </div>
+          <div className="mt-3 flex justify-between text-[10px] text-[#9aaa9f]"><span>W1</span><span>W2</span><span>W3</span><span>W4</span><span>W5</span><span>W6</span><span>W7</span><span>W8</span></div>
+        </Card>
+
+        <Card className="border-0 bg-[#e2f3e5] p-5 shadow-sm sm:p-6">
+          <div className="flex items-start justify-between"><div><p className="text-xs text-[#71917a]">Circularity score</p><p className="mt-2 text-4xl font-semibold tracking-tight text-[#173b2d]">{Math.round((RECYCLING.produced / RECYCLING.received) * 100)}<span className="text-lg font-normal text-[#6b9175]">%</span></p></div><div className="rounded-xl bg-white/70 p-2 text-[#36ad51]"><Leaf size={19} /></div></div>
+          <p className="mt-2 text-xs font-medium text-[#43a45a]">↗ 12% from last month</p>
+          <div className="mt-6 space-y-3"><div className="flex items-center justify-between text-xs text-[#557561]"><span>Waste converted to granules</span><span className="font-semibold">{fmt(RECYCLING.produced)} kg</span></div><div className="h-2 overflow-hidden rounded-full bg-white/80"><div className="h-full rounded-full bg-[#35b653]" style={{ width: `${Math.round((RECYCLING.produced / RECYCLING.received) * 100)}%` }} /></div><div className="grid grid-cols-2 gap-3 pt-1"><div><p className="text-[10px] text-[#73917c]">Received this month</p><p className="mt-1 text-sm font-semibold text-[#173b2d]">{fmt(RECYCLING.received)} kg</p></div><div><p className="text-[10px] text-[#73917c]">Granules in stock</p><p className="mt-1 text-sm font-semibold text-[#173b2d]">{fmt(RECYCLING.openingStock + RECYCLING.produced - RECYCLING.sold)} kg</p></div></div></div>
+        </Card>
+      </section>
 
       <Pair left={has("attention") ? <AttentionSection tasks={tasks} /> : null} right={has("activity") ? <ActivitySection /> : null} />
-
-      {has("production") && <ProductionSection />}
-
       <Pair left={has("stock") ? <StockSection monthLabel={monthLabel} /> : null} right={has("waste") ? <WasteSection /> : null} />
-
       <Pair left={has("costing") ? <CostingSection /> : null} right={has("recycling") ? <RecyclingSection /> : null} />
+      {has("workflow") && <WorkflowSection />}
+      {has("production") && <ProductionSection />}
     </div>
   );
 }

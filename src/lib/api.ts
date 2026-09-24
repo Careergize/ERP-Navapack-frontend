@@ -8,8 +8,31 @@ export const api = axios.create({
   baseURL: apiBaseUrl,
 });
 
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  access: string;
+  refresh: string;
+  user?: {
+    id: string | number;
+    name?: string;
+    username?: string;
+    email?: string;
+    role?: string;
+    department?: string;
+  };
+}
+
+export async function loginRequest(credentials: LoginRequest): Promise<LoginResponse> {
+  const { data } = await api.post<LoginResponse>("/auth/login/", credentials);
+  return data;
+}
+
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("navapack_token");
+  const token = localStorage.getItem("navapack_access") ?? localStorage.getItem("navapack_token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -19,7 +42,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !window.location.pathname.endsWith("/login")) {
       localStorage.removeItem("navapack_token");
       window.location.href = "/login";
     }
