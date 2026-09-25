@@ -101,3 +101,45 @@ export interface ExchangeRate {
   date: string;
   enteredBy: string;
 }
+
+export interface Item {
+  id: string;
+  name: string;
+  unit: string;
+  category: string;
+}
+
+export interface Model {
+  id: string;
+  name: string;
+  billOfMaterials: string;
+  stages: Stage[];
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  contactPerson: string;
+  phone: string;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  materialSupplied: string;
+  phone: string;
+}
+
+export interface Department {
+  id: string;
+  name: string;
+  assignedProductionManager: string;
+}
+
+export interface MasterUser {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  department?: string;
+}

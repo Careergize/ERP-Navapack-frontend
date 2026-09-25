@@ -1,4 +1,4 @@
-import type { CostingRecord, ExchangeRate, GranulesBatch, JobCard, SalesOrder, TraceResult, WasteEntry } from "@/types";
+import type { CostingRecord, Customer, Department, ExchangeRate, GranulesBatch, Item, JobCard, MasterUser, Model, SalesOrder, Supplier, TraceResult, WasteEntry } from "@/types";
 
 export const MOCK_SALES_ORDERS: SalesOrder[] = [
   { id: "so-1", orderNumber: "SO-1042", customerName: "Kano Retail Group", date: "2026-09-15", status: "Open", jobCardIds: ["jc-1", "jc-2"] },
@@ -155,4 +155,41 @@ export const MOCK_EXCHANGE_RATES: ExchangeRate[] = [
   { id: "fx-1", currency: "USD", rate: 1552, date: "2026-09-19", enteredBy: "Femi (Accounts)" },
   { id: "fx-2", currency: "USD", rate: 1550, date: "2026-09-18", enteredBy: "Femi (Accounts)" },
   { id: "fx-3", currency: "USD", rate: 1548, date: "2026-09-11", enteredBy: "Femi (Accounts)" },
+];
+
+export const MOCK_ITEMS: Item[] = [
+  { id: "i-1", name: "HDPE Resin", unit: "kg", category: "Raw Material" },
+  { id: "i-2", name: "Woven Sack 25kg", unit: "pcs", category: "Finished Good" },
+  { id: "i-3", name: "Recycled Granules", unit: "kg", category: "Raw Material" },
+];
+
+export const MOCK_MODELS: Model[] = [
+  { id: "m-1", name: "Woven Sack 25kg", billOfMaterials: "HDPE resin, UV stabilizer, print ink", stages: ["Extrusion", "Printing", "Packaging", "Stock", "Ready to Sale"] },
+  { id: "m-2", name: "Print-Only Labels", billOfMaterials: "Pre-extruded film, print ink", stages: ["Printing", "Stock", "Ready to Sale"] },
+  { id: "m-3", name: "Plastic Bag 10kg", billOfMaterials: "LDPE resin, print ink", stages: ["Extrusion", "Printing", "Packaging", "Stock", "Ready to Sale"] },
+];
+
+export const MOCK_CUSTOMERS: Customer[] = [
+  { id: "cu-1", name: "Kano Retail Group", contactPerson: "Ibrahim Sule", phone: "+234 803 555 0142" },
+  { id: "cu-2", name: "Lagos Wholesale Traders", contactPerson: "Chidinma Okoye", phone: "+234 802 555 0198" },
+  { id: "cu-3", name: "Accra Distributors Ltd", contactPerson: "Kwesi Amoah", phone: "+233 244 555 0112" },
+];
+
+export const MOCK_SUPPLIERS: Supplier[] = [
+  { id: "su-1", name: "PetroChem Resins Ltd", materialSupplied: "HDPE / LDPE resin", phone: "+234 701 555 0301" },
+  { id: "su-2", name: "InkWorks Africa", materialSupplied: "Print ink", phone: "+234 809 555 0177" },
+];
+
+export const MOCK_DEPARTMENTS: Department[] = [
+  { id: "d-1", name: "Extrusion", assignedProductionManager: "Kwame (Production Manager)" },
+  { id: "d-2", name: "Printing", assignedProductionManager: "Ngozi Eze" },
+  { id: "d-3", name: "Packaging", assignedProductionManager: "Ngozi Eze" },
+];
+
+export const MOCK_USERS: MasterUser[] = [
+  { id: "u-1", name: "Amara", email: "amara@navapack.com", role: "receptionist" },
+  { id: "u-2", name: "Kwame", email: "kwame@navapack.com", role: "production_manager", department: "Extrusion" },
+  { id: "u-3", name: "Zola", email: "zola@navapack.com", role: "store_keeper" },
+  { id: "u-4", name: "Naledi", email: "naledi@navapack.com", role: "recycling_operator" },
+  { id: "u-5", name: "Femi", email: "femi@navapack.com", role: "accounts" },
 ];

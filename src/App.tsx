@@ -11,6 +11,7 @@ import { StockPage } from "@/pages/Stocks/stocks";
 import { Placeholder } from "@/pages/Placeholder";
 import { RecyclingPage } from "@/pages/Recycling/RecyclingPage";
 import { CostingPage } from "@/pages/Costing/CostingPage";
+import { MastersPage } from "@/pages/Masters/MastersPage";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { user } = useAuth();
@@ -38,7 +39,7 @@ function AppRoutes() {
         <Route path="/stock" element={<StockPage />} />
         <Route path="/recycling" element={<RecyclingPage />} />
         <Route path="/costing" element={<CostingPage />} />
-        <Route path="/masters" element={<Placeholder title="Masters" />} />
+        <Route path="/masters" element={<MastersPage />} />
         <Route path="/track-trace" element={<TrackTrace />} />
       </Route>
     </Routes>
