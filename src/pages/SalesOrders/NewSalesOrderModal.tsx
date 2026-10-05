@@ -1,31 +1,35 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Plus, X } from 'lucide-react';
-import { MOCK_CUSTOMERS, MOCK_ITEMS } from '@/lib/mockData';
-import { lineTotal, orderTotal, today, validateOrder, type SalesOrderDraft } from '@/lib/salesOrders';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { Plus, Trash2, X } from 'lucide-react';
+import { MOCK_CUSTOMERS, MOCK_ITEMS, MOCK_USERS } from '@/lib/mockData';
+import { getAvailableStock } from '@/lib/stockData';
+import { lineTotal, nextOrderNumber, orderSummary, today, validateOrder, type SalesOrderDraft } from '@/lib/salesOrders';
 import { useSalesOrders } from '@/context/SalesOrdersContext';
-import type { CustomerType, SalesOrderItem } from '@/types';
+import { ENTRY_INPUT, SearchSelect } from '@/components/ui/SearchSelect';
+import type { SalesOrderItem } from '@/types';
 
-const INPUT = 'mt-1 block w-full rounded-card border border-gray-200 px-3 py-2 text-sm text-ink focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy';
 const newItem = (): SalesOrderItem => ({ id: crypto.randomUUID(), itemName: '', quantity: NaN, unit: '', unitPrice: NaN, totalPrice: 0 });
-function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
-  return <label className="block text-sm text-gray-600">{label}{children}{error && <span role="alert" className="mt-1 block text-xs text-red-600">{error}</span>}</label>;
-}
+const untouched = (item: SalesOrderItem) => !item.itemName && !item.itemId && !item.unit && Number.isNaN(item.quantity) && Number.isNaN(item.unitPrice);
+const money = (value: number) => `₹${(Number.isFinite(value) ? value : 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 export function NewSalesOrderModal({ onClose, onCreated }: { onClose: () => void; onCreated: (number: string) => void }) {
-  const { createSalesOrder } = useSalesOrders();
+  const { orders, createSalesOrder } = useSalesOrders();
   const [draft, setDraft] = useState<SalesOrderDraft>(() => ({ customerName: '', date: today(), marketingPersonName: '', customerType: '', requisitionOrder: '', items: [newItem()] }));
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [attempted, setAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const locked = useRef(false);
   const dialog = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    dialog.current?.querySelector<HTMLInputElement>('input')?.focus();
-    const keydown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); onClose(); }
+    dialog.current?.querySelector<HTMLInputElement>('#order-customer')?.focus();
+    const keydown = (event: globalThis.KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.key === 'Escape') { event.preventDefault(); close.current(); }
       if (event.key === 'Tab') {
-        const elements = Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input, select') ?? []);
+        const elements = Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not([readonly]), select') ?? []);
         const first = elements[0], last = elements[elements.length - 1];
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
@@ -33,45 +37,64 @@ export function NewSalesOrderModal({ onClose, onCreated }: { onClose: () => void
     };
     document.addEventListener('keydown', keydown);
     return () => { document.body.style.overflow = overflow; document.removeEventListener('keydown', keydown); previous?.focus(); };
-  }, [onClose]);
+  }, []);
+  const focus = (id: string) => dialog.current?.querySelector<HTMLElement>(`[id="${id}"]`)?.focus();
+  const advance = (event: KeyboardEvent, id: string) => { if (event.key === 'Enter') { event.preventDefault(); focus(id); } };
   const updateItem = (id: string, change: Partial<SalesOrderItem>) => setDraft(current => ({ ...current, items: current.items.map(item => item.id === id ? { ...item, ...change } : item) }));
+  const addItem = () => {
+    const item = newItem();
+    setDraft(current => ({ ...current, items: [...current.items, item] }));
+    requestAnimationFrame(() => focus(`item-${item.id}`));
+  };
+  const nextItem = (index: number) => {
+    if (draft.items[index + 1]) focus(`item-${draft.items[index + 1].id}`);
+    else if (!untouched(draft.items[index])) addItem();
+  };
+  const effective = { ...draft, items: draft.items.filter(item => !untouched(item)) };
+  const liveErrors = attempted ? validateOrder(effective) : {};
+  const errorFor = (item: SalesOrderItem, field: string) => liveErrors[`${effective.items.findIndex(value => value.id === item.id)}.${field}`];
+  const summary = orderSummary(effective.items);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (locked.current) return;
-    const validation = validateOrder(draft);
-    setErrors(validation);
-    if (Object.keys(validation).length) return;
-    locked.current = true;
-    setSubmitting(true);
-    try { const order = createSalesOrder(draft); onCreated(order.orderNumber); }
+    setAttempted(true);
+    if (Object.keys(validateOrder(effective)).length) return;
+    locked.current = true; setSubmitting(true);
+    try { const order = createSalesOrder(effective); onCreated(order.orderNumber); }
     catch (error) { setErrors({ form: error instanceof Error ? error.message : 'Unable to create order.' }); locked.current = false; setSubmitting(false); }
   };
-  const money = (value: number) => (Number.isFinite(value) ? value : 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/30 p-4" role="dialog" aria-modal="true" aria-labelledby="new-order-title">
-    <div ref={dialog} className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-card bg-white p-5 shadow-xl">
-      <div className="flex items-center justify-between"><h2 id="new-order-title" className="text-lg font-semibold text-navy">New Sales Order</h2><button type="button" onClick={onClose} aria-label="Close" className="rounded-full p-1 text-gray-400 hover:bg-gray-100"><X size={18} /></button></div>
+  const customers = MOCK_CUSTOMERS.map(c => ({ id: c.id, name: c.name }));
+  const staff = MOCK_USERS.map(user => ({ id: user.id, name: user.name, detail: user.role.replaceAll('_', ' ') }));
+  const items = MOCK_ITEMS.map(item => { const available = getAvailableStock(item.name, item.unit); return { id: item.id, name: item.name, detail: `Unit: ${item.unit}${available === undefined ? '' : ` · Available: ${available.toLocaleString('en-IN')} ${item.unit}`}` }; });
+  const error = (text?: string) => text && <p role="alert" className="mt-1 text-xs text-red-600">{text}</p>;
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/30 p-2 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="new-order-title">
+    <div ref={dialog} className="max-h-[95vh] w-full max-w-6xl overflow-y-auto rounded-card bg-white p-4 shadow-xl sm:p-6">
+      <div className="flex items-center justify-between"><div><h2 id="new-order-title" className="text-lg font-semibold text-navy">New Sales Order</h2><p className="mt-1 text-xs text-gray-500">Search to select · Tab to move · Enter on Rate for the next item</p></div><button type="button" onClick={onClose} aria-label="Close" className="rounded-full p-1 text-gray-400 hover:bg-gray-100"><X size={18} /></button></div>
       <form onSubmit={submit} noValidate className="mt-5 space-y-5">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Customer Name *" error={errors.customerName}><input required list="order-customers" value={draft.customerName} onChange={e => setDraft({ ...draft, customerName: e.target.value })} className={INPUT} /><datalist id="order-customers">{MOCK_CUSTOMERS.map(c => <option key={c.id} value={c.name} />)}</datalist></Field>
-          <Field label="Order Date" error={errors.date}><input type="date" readOnly value={draft.date} className={`${INPUT} bg-gray-50`} /></Field>
-          <Field label="Marketing Person Name *" error={errors.marketingPersonName}><input required value={draft.marketingPersonName} onChange={e => setDraft({ ...draft, marketingPersonName: e.target.value })} className={INPUT} /></Field>
-          <Field label="Customer Type *" error={errors.customerType}><select required value={draft.customerType} onChange={e => setDraft({ ...draft, customerType: e.target.value as CustomerType })} className={INPUT}><option value="">Select customer type</option><option>B2B</option><option>B2C</option></select></Field>
-          <Field label="Requisition Order"><input value={draft.requisitionOrder} onChange={e => setDraft({ ...draft, requisitionOrder: e.target.value })} className={INPUT} /></Field>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="text-sm text-gray-600">Order No<input aria-label="Order No" readOnly tabIndex={-1} value={nextOrderNumber(orders)} className={`${ENTRY_INPUT} mt-1 bg-gray-50`} /></label>
+          <label className="text-sm text-gray-600">Date<input aria-label="Date" type="date" readOnly tabIndex={-1} value={draft.date} className={`${ENTRY_INPUT} mt-1 bg-gray-50`} /></label>
+          <div className="text-sm text-gray-600"><label htmlFor="order-customer" className="mb-1 block">Customer *</label><SearchSelect label="Customer" inputId="order-customer" value={draft.customerName} options={customers} error={liveErrors.customerName} onChange={value => setDraft({ ...draft, customerName: value, customerId: undefined })} onSelect={option => setDraft({ ...draft, customerName: option.name, customerId: option.id })} onAdvance={() => focus('order-marketing')} /></div>
+          <div className="text-sm text-gray-600"><label htmlFor="order-marketing" className="mb-1 block">Marketing Person *</label><SearchSelect label="Marketing Person" inputId="order-marketing" value={draft.marketingPersonName} options={staff} error={liveErrors.marketingPersonName} onChange={value => setDraft({ ...draft, marketingPersonName: value })} onSelect={option => setDraft({ ...draft, marketingPersonName: option.name })} onAdvance={() => focus('customer-type-B2B')} /></div>
+          <fieldset><legend className="mb-1 text-sm text-gray-600">Customer Type *</legend><div className="flex gap-2">{(['B2B', 'B2C'] as const).map(type => <label key={type} className={`flex cursor-pointer items-center gap-2 rounded-card border px-4 py-2 text-sm ${draft.customerType === type ? 'border-navy bg-navy/5 text-navy' : 'border-gray-200 text-gray-600'}`}><input id={`customer-type-${type}`} type="radio" name="customer-type" value={type} checked={draft.customerType === type} onChange={() => setDraft({ ...draft, customerType: type })} onKeyDown={event => advance(event, 'order-requisition')} />{type}</label>)}</div>{error(liveErrors.customerType)}</fieldset>
+          <label className="text-sm text-gray-600">Requisition Order<input id="order-requisition" value={draft.requisitionOrder} onChange={event => setDraft({ ...draft, requisitionOrder: event.target.value })} onKeyDown={event => advance(event, `item-${draft.items[0].id}`)} className={`${ENTRY_INPUT} mt-1`} /></label>
         </div>
-        <div className="space-y-3"><h3 className="font-medium text-navy">Items</h3>
-          {draft.items.map((item, i) => <fieldset key={item.id} className="rounded-card border border-gray-200 p-3"><legend className="px-1 text-sm text-gray-500">Item {i + 1}</legend><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <Field label="Item *" error={errors[`${i}.item`]}><select required value={item.itemId ?? ''} onChange={e => { const selected = MOCK_ITEMS.find(value => value.id === e.target.value); updateItem(item.id, { itemId: selected?.id, itemName: selected?.name ?? '', unit: selected?.unit ?? '' }); }} className={INPUT}><option value="">Select item</option>{MOCK_ITEMS.map(value => <option key={value.id} value={value.id}>{value.name}</option>)}</select></Field>
-            <Field label="Quantity *" error={errors[`${i}.quantity`]}><input required type="number" step="any" min="0" value={Number.isNaN(item.quantity) ? '' : item.quantity} onChange={e => updateItem(item.id, { quantity: e.target.valueAsNumber })} className={INPUT} /></Field>
-            <Field label="Unit *" error={errors[`${i}.unit`]}><select required value={item.unit} onChange={e => updateItem(item.id, { unit: e.target.value })} className={INPUT}><option value="">Select unit</option>{[...new Set(MOCK_ITEMS.map(value => value.unit))].map(unit => <option key={unit}>{unit}</option>)}</select></Field>
-            <Field label="Per Unit Price *" error={errors[`${i}.price`]}><input required type="number" min="0" step="0.01" value={Number.isNaN(item.unitPrice) ? '' : item.unitPrice} onChange={e => updateItem(item.id, { unitPrice: e.target.valueAsNumber })} className={INPUT} /></Field>
-            <Field label="Total Price"><output className={`${INPUT} bg-gray-50`} aria-live="polite">{money(lineTotal(item.quantity, item.unitPrice))}</output></Field>
-          </div><button type="button" disabled={draft.items.length === 1} onClick={() => setDraft({ ...draft, items: draft.items.filter(value => value.id !== item.id) })} className="mt-3 text-sm text-red-600 disabled:opacity-40">Remove Item</button></fieldset>)}
-          <button type="button" onClick={() => setDraft({ ...draft, items: [...draft.items, newItem()] })} className="inline-flex items-center gap-1 rounded-card border border-gray-200 px-3 py-2 text-sm text-navy"><Plus size={16} /> Add Item</button>
-          {errors.items && <p role="alert" className="text-sm text-red-600">{errors.items}</p>}
-        </div>
-        <div className="flex justify-between border-t border-gray-200 pt-4 font-semibold text-navy"><span>Order Total</span><output aria-live="polite">{money(orderTotal(draft.items))}</output></div>
-        {errors.form && <p role="alert" className="text-sm text-red-600">{errors.form}</p>}
-        <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="rounded-card border border-gray-200 px-4 py-2 text-sm text-gray-600">Cancel</button><button type="submit" disabled={submitting} className="rounded-card bg-navy px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{submitting ? 'Creating…' : 'Create Order'}</button></div>
+        <section aria-label="Order items" className="rounded-card border border-gray-200">
+          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3"><h3 className="font-medium text-navy">Items</h3><span className="text-xs text-gray-500">{effective.items.length} item(s)</span></div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="bg-gray-50 text-xs text-gray-500"><tr>{['Item', 'Quantity', 'Unit', 'Rate', 'Amount', 'Action'].map(label => <th key={label} scope="col" className="px-3 py-3 font-medium">{label}</th>)}</tr></thead>
+            <tbody className="divide-y divide-gray-100">{draft.items.map((item, i) => { const available = getAvailableStock(item.itemName, item.unit); return <tr key={item.id} className="align-top">
+              <td className="w-[35%] px-3 py-3"><SearchSelect inputId={`item-${item.id}`} label={`Item ${i + 1}`} value={item.itemName} options={items} error={errorFor(item, 'item')} onChange={value => updateItem(item.id, { itemName: value, itemId: undefined, unit: '' })} onSelect={option => { const selected = MOCK_ITEMS.find(value => value.id === option.id)!; updateItem(item.id, { itemId: selected.id, itemName: selected.name, unit: selected.unit }); }} onAdvance={() => focus(`quantity-${item.id}`)} />{available !== undefined && <p className="mt-1 text-xs text-gray-500">Available: {available.toLocaleString('en-IN')} {item.unit}</p>}{available !== undefined && item.quantity > available && <p role="status" className="mt-1 text-xs text-amber-700">Requested quantity exceeds currently available stock.</p>}</td>
+              <td className="px-3 py-3"><input id={`quantity-${item.id}`} aria-label={`Quantity ${i + 1}`} type="number" step="any" min="0" value={Number.isNaN(item.quantity) ? '' : item.quantity} onChange={event => updateItem(item.id, { quantity: event.target.valueAsNumber })} onKeyDown={event => advance(event, `rate-${item.id}`)} className={`${ENTRY_INPUT} min-w-[100px]`} />{error(errorFor(item, 'quantity'))}</td>
+              <td className="px-3 py-3"><select aria-label={`Unit ${i + 1}`} value={item.unit} onChange={event => updateItem(item.id, { unit: event.target.value })} className={ENTRY_INPUT}><option value="">Select</option>{[...new Set(MOCK_ITEMS.map(value => value.unit))].map(unit => <option key={unit}>{unit}</option>)}</select>{error(errorFor(item, 'unit'))}</td>
+              <td className="px-3 py-3"><input id={`rate-${item.id}`} aria-label={`Rate ${i + 1}`} type="number" min="0" step="0.01" value={Number.isNaN(item.unitPrice) ? '' : item.unitPrice} onChange={event => updateItem(item.id, { unitPrice: event.target.valueAsNumber })} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); nextItem(i); } }} className={`${ENTRY_INPUT} min-w-[100px]`} />{error(errorFor(item, 'price'))}</td>
+              <td className="whitespace-nowrap px-3 py-5 font-medium tabular-nums text-navy"><output aria-label={`Amount ${i + 1}`} aria-live="polite">{money(lineTotal(item.quantity, item.unitPrice))}</output></td>
+              <td className="px-3 py-3"><button type="button" disabled={draft.items.length === 1} aria-label={`Remove Item ${i + 1}`} onClick={() => setDraft({ ...draft, items: draft.items.filter(value => value.id !== item.id) })} className="rounded-card p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-30"><Trash2 size={16} /></button></td>
+            </tr>; })}</tbody>
+          </table></div>
+        </section>
+        <div className="flex flex-col justify-between gap-4 sm:flex-row"><div><button type="button" onClick={addItem} className="inline-flex items-center gap-1 rounded-card border border-gray-200 px-3 py-2 text-sm text-navy"><Plus size={16} /> Add Item</button>{error(liveErrors.items)}</div><dl className="w-full space-y-3 rounded-card bg-gray-50 p-4 sm:w-72"><div className="flex justify-between text-sm text-gray-600"><dt>Subtotal</dt><dd>{money(summary.subtotal)}</dd></div><div className="flex justify-between border-t border-gray-200 pt-3 font-semibold text-navy"><dt>Order Total</dt><dd><output aria-live="polite">{money(summary.total)}</output></dd></div></dl></div>
+        {error(errors.form)}
+        <div className="flex justify-end gap-2 border-t border-gray-200 pt-4"><button type="button" onClick={onClose} className="rounded-card border border-gray-200 px-4 py-2 text-sm text-gray-600">Cancel</button><button type="submit" disabled={submitting} className="rounded-card bg-navy px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{submitting ? 'Creating…' : 'Create Order'}</button></div>
       </form>
     </div>
   </div>;

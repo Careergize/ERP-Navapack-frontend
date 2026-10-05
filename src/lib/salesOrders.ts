@@ -1,6 +1,7 @@
 import type { CustomerType, SalesOrder, SalesOrderItem } from '@/types';
 
 export interface SalesOrderDraft {
+  customerId?: string;
   customerName: string;
   date: string;
   marketingPersonName: string;
@@ -22,7 +23,7 @@ export function validateOrder(draft: SalesOrderDraft) {
   if (!draft.date || !Number.isFinite(Date.parse(draft.date))) errors.date = 'A valid order date is required.';
   if (!draft.items.length) errors.items = 'Add at least one item.';
   draft.items.forEach((item, i) => {
-    if (!item.itemName.trim()) errors[`${i}.item`] = 'Select an item.';
+    if (!item.itemId || !item.itemName.trim()) errors[`${i}.item`] = 'Select an item.';
     if (!Number.isFinite(item.quantity) || item.quantity <= 0) errors[`${i}.quantity`] = 'Quantity must be greater than 0.';
     if (!item.unit.trim()) errors[`${i}.unit`] = 'Select a unit.';
     if (!Number.isFinite(item.unitPrice) || item.unitPrice < 0) errors[`${i}.price`] = 'Price must be 0 or greater.';
@@ -31,11 +32,13 @@ export function validateOrder(draft: SalesOrderDraft) {
   if (draft.items.every(item => Number.isFinite(item.quantity) && Number.isFinite(item.unitPrice)) && !Number.isFinite(orderTotal(draft.items))) errors.items = 'The order total is too large.';
   return errors;
 }
+export const nextOrderNumber = (existing: SalesOrder[]) => `SO-${Math.max(0, ...existing.map(order => Number(order.orderNumber.replace(/^SO-/, '')) || 0)) + 1}`;
+export const orderSummary = (items: SalesOrderItem[]) => { const subtotal = orderTotal(items.filter(item => Number.isFinite(item.quantity) && Number.isFinite(item.unitPrice))); return { subtotal, total: subtotal }; };
+// Future: backend may export/sync Sales Orders with Tally.
 export function buildSalesOrder(draft: SalesOrderDraft, existing: SalesOrder[]): SalesOrder {
   if (Object.keys(validateOrder(draft)).length) throw new Error('Please correct the highlighted fields.');
-  const next = Math.max(0, ...existing.map(order => Number(order.orderNumber.replace(/^SO-/, '')) || 0)) + 1;
   return {
-    ...draft, id: `so-${crypto.randomUUID()}`, orderNumber: `SO-${next}`,
+    ...draft, id: `so-${crypto.randomUUID()}`, orderNumber: nextOrderNumber(existing),
     customerName: draft.customerName.trim(), marketingPersonName: draft.marketingPersonName.trim(),
     requisitionOrder: draft.requisitionOrder.trim(), customerType: draft.customerType as CustomerType,
     items: draft.items.map(item => ({ ...item, totalPrice: lineTotal(item.quantity, item.unitPrice) })),

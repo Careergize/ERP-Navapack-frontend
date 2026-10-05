@@ -36,6 +36,7 @@ export interface SalesOrderItem {
 }
 
 export interface SalesOrder {
+  customerId?: string;
   marketingPersonName?: string;
   customerType?: CustomerType;
   requisitionOrder?: string;
