@@ -1,0 +1,36 @@
+# Architecture
+
+## Actual frontend structure
+
+The application lives in navapack-frontend, which has its own Git repository and package.json. No backend code is present.
+
+src/main.tsx mounts React StrictMode and BrowserRouter. src/App.tsx composes AuthProvider, SalesOrdersProvider and InventoryProvider. RequireAuth checks the in-memory user; AppShell hosts nested routes and role-filtered navigation. Navigation visibility is not server authorization.
+
+Routes: / (Dashboard), /sales-orders and /sales-orders/new, /job-cards and /job-cards/:id, /stock, /raw-materials, /recycling, /costing, /track-trace, /masters and /login. The new-order route opens the modal on the list page. Placeholder.tsx remains in source but is not wired to these module routes.
+
+Shared UI lives in components/ui; branding/login elements in components/login; shell/navigation in components/layout. Tailwind configuration and src/index.css supply styling. Branding is public/assets/Nava-logo.png. Vite maps @ to src and uses relative asset base paths.
+
+## State and data flow
+
+Sales order form -> validation/build helpers in lib/salesOrders.ts -> SalesOrdersContext -> list and Stock SalesOrderDemand.
+The form selects finished-goods variant IDs and reads InventoryContext balances. Creating an order does not write movements.
+Demand reads each open line against current finished-goods stock independently; it is not an allocation engine.
+
+Finished-goods reference -> lib/finishedGoodsData.ts -> InventoryContext movements -> Stock balances, movement history and monthly reports.
+Raw-material reference plus legacy demo granules -> lib/rawMaterialData.ts -> separate InventoryContext movements -> Virgin Material, Recycled Granules and Ink views.
+
+Both Context stores survive navigation and reset on refresh. Masters has page-local mock add/edit state; these edits do not update the separately imported customer/staff suggestions in sales orders. Job Cards, Recycling, Costing and Track & Trace use Axios with mock fallbacks. Dashboard uses its own static demo metrics rather than live Context totals.
+
+Types are in src/types/index.ts and domain data/helper files. Balance functions and variant matching live alongside inventory types. Generated reference files contain workbook-derived records; extraction scripts require Python/openpyxl. Detailed FG interpretation is maintained in finished-goods-reference.md.
+
+## Authentication
+
+AuthContext keeps the user in memory and stores real-login access/refresh tokens in localStorage; it does not restore a user session on refresh or refresh tokens automatically. Login supports mock credentials under the conditions documented in README.md. Axios attaches a stored access/legacy token. Its 401 handler removes the legacy token and redirects outside login; complete token cleanup is currently in logout.
+
+## Future Backend Integration
+
+Replace Context seed loading/create/add methods with API adapters while preserving variant IDs, units and unknown balances. Connect master state to order selection and production data to inventory.
+
+Existing client calls in lib/api.ts and module pages expect authentication, job-card reads/stage writes, recycling reads, costing/rate reads and writes, and trace lookup. They are not documented as implemented server contracts. Verify response shapes and error handling against the eventual backend; failed stage/rate writes currently retain local changes.
+
+Define authoritative inventory posting, reservations, statuses and permissions before integrating production or dispatch. See BACKEND_TODO.md.
