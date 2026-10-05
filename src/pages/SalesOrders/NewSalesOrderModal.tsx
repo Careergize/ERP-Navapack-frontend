@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
-import { MOCK_CUSTOMERS, MOCK_ITEMS, MOCK_USERS } from '@/lib/mockData';
-import { getAvailableStock } from '@/lib/stockData';
+import { MOCK_CUSTOMERS, MOCK_USERS } from '@/lib/mockData';
+import { FINISHED_GOODS, FINISHED_BY_ID, FINISHED_CATEGORY_LABEL, findFinishedGood, finishedBalance, finishedGoodLabel } from '@/lib/finishedGoodsData';
+import { useInventory } from '@/context/InventoryContext';
 import { lineTotal, nextOrderNumber, orderSummary, today, validateOrder, type SalesOrderDraft } from '@/lib/salesOrders';
 import { useSalesOrders } from '@/context/SalesOrdersContext';
 import { ENTRY_INPUT, SearchSelect } from '@/components/ui/SearchSelect';
@@ -12,6 +13,11 @@ const untouched = (item: SalesOrderItem) => !item.itemName && !item.itemId && !i
 const money = (value: number) => `₹${(Number.isFinite(value) ? value : 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 export function NewSalesOrderModal({ onClose, onCreated }: { onClose: () => void; onCreated: (number: string) => void }) {
   const { orders, createSalesOrder } = useSalesOrders();
+  const { finishedMovements } = useInventory();
+  const getAvailableStock = (itemId: string | undefined, name: string, unit: string) => {
+    const product = findFinishedGood(itemId, name, unit);
+    return product && product.unit === unit ? finishedBalance(product, finishedMovements).currentStock ?? undefined : undefined;
+  };
   const [draft, setDraft] = useState<SalesOrderDraft>(() => ({ customerName: '', date: today(), marketingPersonName: '', customerType: '', requisitionOrder: '', items: [newItem()] }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [attempted, setAttempted] = useState(false);
@@ -65,7 +71,7 @@ export function NewSalesOrderModal({ onClose, onCreated }: { onClose: () => void
   };
   const customers = MOCK_CUSTOMERS.map(c => ({ id: c.id, name: c.name }));
   const staff = MOCK_USERS.map(user => ({ id: user.id, name: user.name, detail: user.role.replaceAll('_', ' ') }));
-  const items = MOCK_ITEMS.map(item => { const available = getAvailableStock(item.name, item.unit); return { id: item.id, name: item.name, detail: `Unit: ${item.unit}${available === undefined ? '' : ` · Available: ${available.toLocaleString('en-IN')} ${item.unit}`}` }; });
+  const items = FINISHED_GOODS.map(item => { const available = getAvailableStock(item.id, finishedGoodLabel(item), item.unit); return { id: item.id, name: finishedGoodLabel(item), detail: `${FINISHED_CATEGORY_LABEL[item.category]} · Source row ${item.sourceRow} · ${available === undefined ? 'Stock not recorded' : `Available: ${available.toLocaleString('en-IN')} ${item.unit}`}` }; });
   const error = (text?: string) => text && <p role="alert" className="mt-1 text-xs text-red-600">{text}</p>;
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/30 p-2 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="new-order-title">
     <div ref={dialog} className="max-h-[95vh] w-full max-w-6xl overflow-y-auto rounded-card bg-white p-4 shadow-xl sm:p-6">
@@ -82,10 +88,10 @@ export function NewSalesOrderModal({ onClose, onCreated }: { onClose: () => void
         <section aria-label="Order items" className="rounded-card border border-gray-200">
           <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3"><h3 className="font-medium text-navy">Items</h3><span className="text-xs text-gray-500">{effective.items.length} item(s)</span></div>
           <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="bg-gray-50 text-xs text-gray-500"><tr>{['Item', 'Quantity', 'Unit', 'Rate', 'Amount', 'Action'].map(label => <th key={label} scope="col" className="px-3 py-3 font-medium">{label}</th>)}</tr></thead>
-            <tbody className="divide-y divide-gray-100">{draft.items.map((item, i) => { const available = getAvailableStock(item.itemName, item.unit); return <tr key={item.id} className="align-top">
-              <td className="w-[35%] px-3 py-3"><SearchSelect inputId={`item-${item.id}`} label={`Item ${i + 1}`} value={item.itemName} options={items} error={errorFor(item, 'item')} onChange={value => updateItem(item.id, { itemName: value, itemId: undefined, unit: '' })} onSelect={option => { const selected = MOCK_ITEMS.find(value => value.id === option.id)!; updateItem(item.id, { itemId: selected.id, itemName: selected.name, unit: selected.unit }); }} onAdvance={() => focus(`quantity-${item.id}`)} />{available !== undefined && <p className="mt-1 text-xs text-gray-500">Available: {available.toLocaleString('en-IN')} {item.unit}</p>}{available !== undefined && item.quantity > available && <p role="status" className="mt-1 text-xs text-amber-700">Requested quantity exceeds currently available stock.</p>}</td>
+            <tbody className="divide-y divide-gray-100">{draft.items.map((item, i) => { const available = getAvailableStock(item.itemId, item.itemName, item.unit); return <tr key={item.id} className="align-top">
+              <td className="w-[35%] px-3 py-3"><SearchSelect inputId={`item-${item.id}`} label={`Item ${i + 1}`} value={item.itemName} options={items} error={errorFor(item, 'item')} onChange={value => updateItem(item.id, { itemName: value, itemId: undefined, unit: '' })} onSelect={option => { const selected = FINISHED_BY_ID.get(option.id)!; updateItem(item.id, { itemId: selected.id, itemName: finishedGoodLabel(selected), unit: selected.unit }); }} onAdvance={() => focus(`quantity-${item.id}`)} />{available !== undefined && <p className="mt-1 text-xs text-gray-500">Available: {available.toLocaleString('en-IN')} {item.unit}</p>}{available !== undefined && item.quantity > available && <p role="status" className="mt-1 text-xs text-amber-700">Requested quantity exceeds currently available stock.</p>}</td>
               <td className="px-3 py-3"><input id={`quantity-${item.id}`} aria-label={`Quantity ${i + 1}`} type="number" step="any" min="0" value={Number.isNaN(item.quantity) ? '' : item.quantity} onChange={event => updateItem(item.id, { quantity: event.target.valueAsNumber })} onKeyDown={event => advance(event, `rate-${item.id}`)} className={`${ENTRY_INPUT} min-w-[100px]`} />{error(errorFor(item, 'quantity'))}</td>
-              <td className="px-3 py-3"><select aria-label={`Unit ${i + 1}`} value={item.unit} onChange={event => updateItem(item.id, { unit: event.target.value })} className={ENTRY_INPUT}><option value="">Select</option>{[...new Set(MOCK_ITEMS.map(value => value.unit))].map(unit => <option key={unit}>{unit}</option>)}</select>{error(errorFor(item, 'unit'))}</td>
+              <td className="px-3 py-3"><select aria-label={`Unit ${i + 1}`} value={item.unit} onChange={event => updateItem(item.id, { unit: event.target.value })} className={ENTRY_INPUT}><option value="">Select</option>{[...new Set(FINISHED_GOODS.map(value => value.unit))].map(unit => <option key={unit}>{unit}</option>)}</select>{error(errorFor(item, 'unit'))}</td>
               <td className="px-3 py-3"><input id={`rate-${item.id}`} aria-label={`Rate ${i + 1}`} type="number" min="0" step="0.01" value={Number.isNaN(item.unitPrice) ? '' : item.unitPrice} onChange={event => updateItem(item.id, { unitPrice: event.target.valueAsNumber })} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); nextItem(i); } }} className={`${ENTRY_INPUT} min-w-[100px]`} />{error(errorFor(item, 'price'))}</td>
               <td className="whitespace-nowrap px-3 py-5 font-medium tabular-nums text-navy"><output aria-label={`Amount ${i + 1}`} aria-live="polite">{money(lineTotal(item.quantity, item.unitPrice))}</output></td>
               <td className="px-3 py-3"><button type="button" disabled={draft.items.length === 1} aria-label={`Remove Item ${i + 1}`} onClick={() => setDraft({ ...draft, items: draft.items.filter(value => value.id !== item.id) })} className="rounded-card p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-30"><Trash2 size={16} /></button></td>

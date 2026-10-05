@@ -15,7 +15,8 @@ export function SearchSelect({ label, value, options, error, inputId, onChange, 
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const [searching, setSearching] = useState(false);
-  const matches = options.filter(option => !searching || option.name.toLowerCase().includes(value.toLowerCase()));
+  const normalizeSearch = (text: string) => text.toLowerCase().replace(/\s+/g, '');
+  const matches = options.filter(option => !searching || normalizeSearch(`${option.name} ${option.detail ?? ''}`).includes(normalizeSearch(value)));
   useLayoutEffect(() => {
     if (!open) return;
     const positionPanel = () => {

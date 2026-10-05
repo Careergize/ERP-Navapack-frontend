@@ -2,12 +2,12 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { X } from 'lucide-react';
 import { ENTRY_INPUT, SearchSelect } from './SearchSelect';
 
-export interface InventoryOption { id: string; name: string; category: string; unit: string; available: number | null; openingDate?: string }
-export interface InventoryEntry { date: string; materialId: string; quantity: number; reference: string; remarks: string }
+export interface InventoryOption { id: string; name: string; category: string; unit: string; available: number | null; openingDate?: string; detail?: string }
+export interface InventoryEntry { date: string; materialId: string; quantity: number; reference: string; remarks: string; customer?: string }
 const today = () => new Date().toLocaleDateString('en-CA');
-export function InventoryMovementModal({ direction, title, options, categories, initialCategory, onClose, onSave }: {
+export function InventoryMovementModal({ direction, title, options, categories, initialCategory, onClose, onSave, finishedGoods = false }: {
   direction: 'IN' | 'OUT'; title: string; options: InventoryOption[]; categories: [string, string][];
-  initialCategory: string; onClose: () => void; onSave: (entry: InventoryEntry) => void;
+  initialCategory: string; onClose: () => void; onSave: (entry: InventoryEntry) => void; finishedGoods?: boolean;
 }) {
   const [category, setCategory] = useState(initialCategory);
   const [name, setName] = useState('');
@@ -16,6 +16,7 @@ export function InventoryMovementModal({ direction, title, options, categories, 
   const [quantity, setQuantity] = useState('');
   const [reference, setReference] = useState('');
   const [remarks, setRemarks] = useState('');
+  const [customer, setCustomer] = useState('');
   const [error, setError] = useState('');
   const dialog = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
@@ -44,11 +45,11 @@ export function InventoryMovementModal({ direction, title, options, categories, 
     event.preventDefault();
     if (locked.current) return;
     if (!selected || !date || !Number.isFinite(Number(quantity)) || Number(quantity) <= 0) {
-      setError('Select a material, a date and a quantity greater than zero.'); return;
+      setError(`Select a ${finishedGoods ? 'product' : 'material'}, a date and a quantity greater than zero.`); return;
     }
     if (selected.openingDate && date < selected.openingDate) { setError(`The reference ledger begins on ${selected.openingDate}. Choose that date or later.`); return; }
     locked.current = true;
-    onSave({ date, materialId, quantity: Number(quantity), reference: reference.trim(), remarks: remarks.trim() });
+    onSave({ date, materialId, quantity: Number(quantity), reference: reference.trim(), remarks: remarks.trim(), ...(finishedGoods ? { customer: customer.trim() } : {}) });
     onClose();
   };
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
@@ -58,15 +59,16 @@ export function InventoryMovementModal({ direction, title, options, categories, 
         <p className="text-xs text-gray-500">Frontend simulation. Entries survive navigation and reset on refresh.</p>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-sm text-gray-600">Date<input type="date" required value={date} min={selected?.openingDate} onChange={event => setDate(event.target.value)} className={`${ENTRY_INPUT} mt-1`} /></label>
-          <label className="text-sm text-gray-600">Material Category<select value={category} onChange={event => { setCategory(event.target.value); setMaterialId(''); setName(''); }} className={`${ENTRY_INPUT} mt-1`}>{categories.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
+          <label className="text-sm text-gray-600">{finishedGoods ? 'Category' : 'Material Category'}<select value={category} onChange={event => { setCategory(event.target.value); setMaterialId(''); setName(''); }} className={`${ENTRY_INPUT} mt-1`}>{categories.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
         </div>
-        <div><label htmlFor="inventory-material" className="mb-1 block text-sm text-gray-600">Material / Grade</label><SearchSelect inputId="inventory-material" label="Material / Grade" value={name} options={options.filter(option => option.category === category).map(option => ({ ...option, detail: option.unit }))} onChange={value => { setName(value); setMaterialId(''); }} onSelect={option => { setName(option.name); setMaterialId(option.id); }} /></div>
-        {selected && <p className="text-sm text-gray-500">Available: {selected.available === null ? 'Not recorded' : `${selected.available.toLocaleString('en-IN', { maximumFractionDigits: 2 })} ${selected.unit}`}</p>}
+        <div><label htmlFor="inventory-material" className="mb-1 block text-sm text-gray-600">{finishedGoods ? 'Product / Variant' : 'Material / Grade'}</label><SearchSelect inputId="inventory-material" label={finishedGoods ? 'Product / Variant' : 'Material / Grade'} value={name} options={options.filter(option => option.category === category).map(option => ({ ...option, detail: option.detail ?? option.unit }))} onChange={value => { setName(value); setMaterialId(''); }} onSelect={option => { setName(option.name); setMaterialId(option.id); }} /></div>
+        {selected && <p className="text-sm text-gray-500">{finishedGoods ? 'Current Stock' : 'Available'}: {selected.available === null ? 'Not recorded' : `${selected.available.toLocaleString('en-IN', { maximumFractionDigits: 2 })} ${selected.unit}`}</p>}
         {direction === 'OUT' && selected?.available != null && Number(quantity) > selected.available && <p role="status" className="text-xs text-amber-700">Quantity exceeds the recorded balance. This simulation allows the entry.</p>}
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-sm text-gray-600">Quantity<input type="number" required min="0.000001" step="any" value={quantity} onChange={event => setQuantity(event.target.value)} className={`${ENTRY_INPUT} mt-1`} /></label>
           <label className="text-sm text-gray-600">Unit<input readOnly value={selected?.unit ?? ''} className={`${ENTRY_INPUT} mt-1 bg-gray-50`} /></label>
         </div>
+        {finishedGoods && direction === 'OUT' && <label className="block text-sm text-gray-600">Customer / Destination<input value={customer} onChange={event => setCustomer(event.target.value)} className={`${ENTRY_INPUT} mt-1`} /></label>}
         <label className="block text-sm text-gray-600">Reference<input value={reference} onChange={event => setReference(event.target.value)} className={`${ENTRY_INPUT} mt-1`} /></label>
         <label className="block text-sm text-gray-600">Remarks<textarea value={remarks} onChange={event => setRemarks(event.target.value)} className={`${ENTRY_INPUT} mt-1`} /></label>
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}

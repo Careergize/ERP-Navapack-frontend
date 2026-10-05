@@ -1,411 +1,135 @@
-import { ITEMS, type Direction, type Movement } from '@/lib/stockData';
-import { SalesOrderDemand } from './SalesOrderDemand';
-import { useMemo, useState } from "react";
-import { useInventory } from '@/context/InventoryContext';
+import { Fragment, useMemo, useState } from 'react';
+import { ArrowDownToLine, ArrowUpFromLine, ChevronDown, Download, Printer, Search } from 'lucide-react';
+import { Card } from '@/components/ui/Card';
+import { ENTRY_INPUT } from '@/components/ui/SearchSelect';
 import { InventoryMovementModal } from '@/components/ui/InventoryMovementModal';
-import { ArrowDownToLine, ArrowUpFromLine, Download, Printer, Search } from "lucide-react";
-import { Card } from "@/components/ui/Card";
+import { useInventory } from '@/context/InventoryContext';
+import { FINISHED_GOODS, FINISHED_BY_ID, FINISHED_CATEGORY_LABEL, finishedBalance, finishedGoodName, finishedGoodLabel, matchesFinishedGood, type FinishedCategory, type FinishedGood } from '@/lib/finishedGoodsData';
+import { SalesOrderDemand } from './SalesOrderDemand';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+type Tab = 'levels' | 'movements' | 'report';
+type CategoryFilter = FinishedCategory | 'all';
+const TABS: [Tab, string][] = [['levels', 'Stock Levels'], ['movements', 'Movements'], ['report', 'Monthly Report']];
+const CATEGORIES = Object.entries(FINISHED_CATEGORY_LABEL) as [FinishedCategory, string][];
+const fmt = (value: number | null) => value === null ? 'Not recorded' : value.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+const TH = 'px-4 py-3 font-medium';
+const TD = 'px-4 py-3';
+const BUTTON = 'flex items-center gap-2 rounded-card border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-navy';
 
-type Tab = "levels" | "movements" | "report";
-type GroupBy = "item" | "model";
-
-interface Row {
-  key: string;
-  unit: string;
-  current: number;
-  opening: number;
-  inward: number;
-  outward: number;
-  closing: number;
-  minLevel?: number;
+function ProductCell({ product, variant = false }: { product: FinishedGood; variant?: boolean }) {
+  return <div className="min-w-[180px] max-w-[300px]">
+    <p className="font-medium text-gray-900" title={finishedGoodLabel(product)}>{finishedGoodName(product)}</p>
+    {variant && <p className="mt-1 text-xs text-gray-500">{[product.size, product.brand, product.packingSize].filter(Boolean).join(' · ')}</p>}
+    {product.customer && <p className="mt-0.5 text-xs text-gray-500">Customer: {product.customer}</p>}
+    {product.itemDetails && product.category !== 'carrier-bags' && <p className="mt-0.5 text-xs text-gray-400">{product.subgroup}</p>}
+    {product.dataNotes.length > 0 && <details className="mt-1 text-xs text-amber-700"><summary className="cursor-pointer">Source notes</summary><p className="mt-1">{product.dataNotes.join(' ')}</p></details>}
+  </div>;
 }
-
-// ---------------------------------------------------------------------------
-// Demo-mode placeholder data — replace with the real stock ledger once the backend is live.
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Calculations
-// ---------------------------------------------------------------------------
-
-const fmt = (n: number) => n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
-const currentMonth = () => new Date().toLocaleDateString('en-CA').slice(0, 7);
-
-const formatDate = (d: string) =>
-  new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-
-const monthLabel = (ym: string) =>
-  new Date(`${ym}-01`).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
-
-// Item-wise or model-wise rows for a category. `month` (YYYY-MM) drives opening / inward / outward / closing.
-function buildRows(movements: Movement[], groupBy: GroupBy, month: string): Row[] {
-  const rows = new Map<string, Row>();
-  const monthStart = `${month}-01`;
-
-  for (const m of movements.filter((x) => x.category === 'finished')) {
-    const byModel = groupBy === "model";
-    const key = byModel ? (m.model ?? "No model") : m.item;
-    const master = ITEMS[m.item];
-    const row =
-      rows.get(key) ??
-      { key, unit: master.unit, current: 0, opening: 0, inward: 0, outward: 0, closing: 0, minLevel: byModel ? undefined : master.minLevel };
-    const sign = m.type === "in" ? 1 : -1;
-
-    row.current += sign * m.qty;
-    if (m.date < monthStart) row.opening += sign * m.qty;
-    else if (m.date.startsWith(month)) m.type === "in" ? (row.inward += m.qty) : (row.outward += m.qty);
-    rows.set(key, row);
-
-  }
-
-  return [...rows.values()]
-    .map((r) => {
-      return { ...r, closing: r.opening + r.inward - r.outward };
-    })
-    .sort((a, b) => a.key.localeCompare(b.key));
+function StockStatus({ quantity }: { quantity: number | null }) {
+  const label = quantity === null ? 'Not recorded' : quantity < 0 ? 'Negative balance' : quantity === 0 ? 'Out of stock' : 'In Stock';
+  const style = quantity === null ? 'bg-gray-100 text-gray-500' : quantity <= 0 ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700';
+  return <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${style}`}>{label}</span>;
 }
-
-function downloadCsv(filename: string, header: string[], lines: (string | number)[][]) {
-  const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
-  const blob = new Blob([[header, ...lines].map((l) => l.map(esc).join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+function downloadCsv(filename: string, lines: (string | number | null)[][]) {
+  const escape = (value: string | number | null) => {
+    const text = value === null ? 'Not recorded' : String(value);
+    const safe = typeof value === 'string' && /^[=+@-]/.test(text) ? `'${text}` : text;
+    return `"${safe.replace(/"/g, '""')}"`;
+  };
+  const url = URL.createObjectURL(new Blob([lines.map(line => line.map(escape).join(',')).join('\n')], { type: 'text/csv;charset=utf-8' }));
+  const link = document.createElement('a'); link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url);
 }
-
-// ---------------------------------------------------------------------------
-// Small pieces
-// ---------------------------------------------------------------------------
-
-
-const TH = "px-4 py-3 font-medium";
-const INPUT =
-  "rounded-card border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy";
-
-function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string }) {
-  return (
-    <div role="group" aria-label={label} className="inline-flex rounded-card bg-gray-100 p-1">
-      {options.map(([v, text]) => (
-        <button
-          key={v}
-          type="button"
-          aria-pressed={value === v}
-          onClick={() => onChange(v)}
-          className={`rounded-md px-3 py-1.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-navy ${
-            value === v ? "bg-white text-navy shadow-sm" : "text-gray-600 hover:text-navy"
-          }`}
-        >
-          {text}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function StockStatus({ row }: { row: Row }) {
-  const [label, style] =
-    row.current <= 0
-      ? ["Out of stock", "bg-red-50 text-red-700 ring-red-600/20"]
-      : row.minLevel !== undefined && row.current < row.minLevel
-        ? ["Below minimum", "bg-amber-50 text-amber-700 ring-amber-600/20"]
-        : ["In stock", "bg-emerald-50 text-emerald-700 ring-emerald-600/20"];
-  return <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${style}`}>{label}</span>;
-}
-
-// ---------------------------------------------------------------------------
-// Tabs
-// ---------------------------------------------------------------------------
-
-function LevelsTab() {
-  const { finishedMovements } = useInventory();
-
-  const [groupBy, setGroupBy] = useState<GroupBy>("item");
-  const rows = useMemo(() => buildRows(finishedMovements, groupBy, currentMonth()), [finishedMovements, groupBy]);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Segmented label="Group finished goods" value={groupBy} onChange={setGroupBy} options={[["item", "Item-wise"], ["model", "Model-wise"]]} />
-      </div>
-
-      <div className="overflow-x-auto rounded-card border border-gray-200 bg-white">
-        <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="border-b border-gray-200 bg-gray-50 text-xs text-gray-500">
-            <tr>
-              <th className={TH}>{groupBy === "model" ? "Model" : "Item"}</th>
-              <th className={`${TH} text-right`}>In stock</th>
-              <th className={TH}>Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {rows.map((r) => (
-              <tr key={r.key} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium text-gray-900">{r.key}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-navy">
-                  <span className="font-semibold">{fmt(r.current)}</span> <span className="text-gray-400">{r.unit}</span>
-                </td>
-                <td className="px-4 py-3">
-                  <StockStatus row={r} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function MovementsTab() {
-  const { finishedMovements } = useInventory();
-  const [query, setQuery] = useState("");
-  const [type, setType] = useState<Direction | "all">("all");
-  const [limit, setLimit] = useState(12);
-
-  const rows = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return finishedMovements.filter(
-      (m) =>
-        (type === "all" || m.type === type) &&
-        (!q || [m.item, m.ref, m.party].some((s) => s.toLowerCase().includes(q))),
-    ).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
-  }, [finishedMovements, query, type]);
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-gray-500">Finished goods Stock IN and Stock OUT are frontend simulations. Sales Order Demand does not deduct physical stock.</p>
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <label htmlFor="mv-search" className="sr-only">Search movements</label>
-          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input id="mv-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by item, reference or party" className={`${INPUT} w-full pl-9`} />
-        </div>
-        <select aria-label="Direction" value={type} onChange={(e) => setType(e.target.value as Direction | "all")} className={INPUT}>
-          <option value="all">Stock IN and OUT</option>
-          <option value="in">Stock IN only</option>
-          <option value="out">Stock OUT only</option>
-        </select>
-      </div>
-
-      <div className="overflow-x-auto rounded-card border border-gray-200 bg-white">
-        <table className="w-full min-w-[760px] text-left text-sm">
-          <thead className="border-b border-gray-200 bg-gray-50 text-xs text-gray-500">
-            <tr>
-              <th className={TH}>Date</th>
-              <th className={TH}>Item</th>
-              <th className={TH}>Type</th>
-              <th className={`${TH} text-right`}>Quantity</th>
-              <th className={TH}>Reference</th>
-              <th className={TH}>Supplier / department / customer</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-gray-500">No movements match your filters.</td>
-              </tr>
-            )}
-            {rows.slice(0, limit).map((m) => {
-
-              return (
-                <tr key={m.id} className="hover:bg-gray-50">
-                  <td className="whitespace-nowrap px-4 py-3 text-gray-500">{formatDate(m.date)}</td>
-                  <td className="px-4 py-3 font-medium text-gray-900">{m.item}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${m.type === "in" ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20" : "bg-amber-50 text-amber-700 ring-amber-600/20"}`}>
-                      {m.type === "in" ? <ArrowDownToLine size={12} /> : <ArrowUpFromLine size={12} />}
-                      {m.type === "in" ? "Stock IN" : "Stock OUT"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gray-900">{fmt(m.qty)} <span className="text-gray-400">{ITEMS[m.item].unit}</span></td>
-                  <td className="px-4 py-3 text-gray-600">{m.ref}</td>
-                  <td className="px-4 py-3 text-gray-600">{m.party}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3 text-sm text-gray-500">
-          <p aria-live="polite">Showing {Math.min(limit, rows.length)} of {rows.length}</p>
-          {limit < rows.length && (
-            <button type="button" onClick={() => setLimit(limit + 12)} className="font-medium text-navy hover:underline focus:outline-none focus-visible:underline">
-              Show more
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ReportTab() {
-  const { finishedMovements } = useInventory();
-  const [month, setMonth] = useState(currentMonth());
-
-  const [groupBy, setGroupBy] = useState<GroupBy>("item");
-
-  const rows = useMemo(() => buildRows(finishedMovements, groupBy, month), [finishedMovements, groupBy, month]);
-  const sameUnit = new Set(rows.map((r) => r.unit)).size === 1;
-  const totals = rows.reduce((t, r) => ({ opening: t.opening + r.opening, inward: t.inward + r.inward, outward: t.outward + r.outward, closing: t.closing + r.closing }), { opening: 0, inward: 0, outward: 0, closing: 0 });
-  const title = `Finished goods stock report, ${monthLabel(month)}`;
-
-  const exportCsv = () =>
-    downloadCsv(
-      `stock-report-finished-${month}.csv`,
-      [groupBy === "model" ? "Model" : "Item", "Unit", "Opening stock", "Stock IN", "Stock OUT", "Closing stock"],
-      rows.map((r) => [r.key, r.unit, r.opening, r.inward, r.outward, r.closing]),
-    );
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3 print:hidden">
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label htmlFor="rep-month" className="block text-sm text-gray-500">Month</label>
-            <input id="rep-month" type="month" value={month} max={currentMonth()} onChange={(e) => e.target.value && setMonth(e.target.value)} className={`${INPUT} mt-1`} />
-          </div>
-          <Segmented label="Group finished goods" value={groupBy} onChange={setGroupBy} options={[["item", "Item-wise"], ["model", "Model-wise"]]} />
-        </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={exportCsv} className="flex items-center gap-2 rounded-card border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy">
-            <Download size={16} /> Export CSV
-          </button>
-          <button type="button" onClick={() => window.print()} className="flex items-center gap-2 rounded-card bg-navy px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-2">
-            <Printer size={16} /> Print report
-          </button>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto rounded-card border border-gray-200 bg-white">
-        <div className="border-b border-gray-200 px-4 py-4">
-          <h2 className="text-base font-semibold text-navy">{title}</h2>
-          <p className="mt-0.5 text-xs text-gray-500">Closing stock = opening stock + Stock IN − Stock OUT</p>
-        </div>
-        <table className="w-full min-w-[600px] text-left text-sm">
-          <thead className="border-b border-gray-200 bg-gray-50 text-xs text-gray-500">
-            <tr>
-              <th className={TH}>{groupBy === "model" ? "Model" : "Item"}</th>
-              <th className={`${TH} text-right`}>Opening stock</th>
-              <th className={`${TH} text-right`}>Stock IN</th>
-              <th className={`${TH} text-right`}>Stock OUT</th>
-              <th className={`${TH} text-right`}>Closing stock</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {rows.map((r) => (
-              <tr key={r.key}>
-                <td className="px-4 py-3 font-medium text-gray-900">{r.key} <span className="font-normal text-gray-400">({r.unit})</span></td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-600">{fmt(r.opening)}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-emerald-700">{r.inward ? `+${fmt(r.inward)}` : "0"}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-amber-700">{r.outward ? `-${fmt(r.outward)}` : "0"}</td>
-                <td className="px-4 py-3 text-right font-semibold tabular-nums text-navy">{fmt(r.closing)}</td>
-              </tr>
-            ))}
-          </tbody>
-          {sameUnit && (
-            <tfoot className="border-t border-gray-200 bg-gray-50 font-semibold text-navy">
-              <tr>
-                <td className="px-4 py-3">Total</td>
-                <td className="px-4 py-3 text-right tabular-nums">{fmt(totals.opening)}</td>
-                <td className="px-4 py-3 text-right tabular-nums">{fmt(totals.inward)}</td>
-                <td className="px-4 py-3 text-right tabular-nums">{fmt(totals.outward)}</td>
-                <td className="px-4 py-3 text-right tabular-nums">{fmt(totals.closing)}</td>
-              </tr>
-            </tfoot>
-          )}
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
-
-const TABS: [Tab, string][] = [["levels", "Stock levels"], ["movements", "Movements"], ["report", "Monthly report"]];
 
 export function StockPage() {
-  const [tab, setTab] = useState<Tab>("levels");
-
   const { finishedMovements, addFinishedMovement } = useInventory();
-  const [direction, setDirection] = useState<"IN" | "OUT" | null>(null);
-  const [notice, setNotice] = useState("");
-  const finishedRows = buildRows(finishedMovements, "item", currentMonth());
+  const [tab, setTab] = useState<Tab>('levels');
+  const [category, setCategory] = useState<CategoryFilter>('all');
+  const [query, setQuery] = useState('');
+  const [brand, setBrand] = useState('all');
+  const [unit, setUnit] = useState('all');
+  const [month, setMonth] = useState('2026-09');
+  const [movementType, setMovementType] = useState('all');
+  const [limit, setLimit] = useState(25);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [direction, setDirection] = useState<'IN' | 'OUT' | null>(null);
+  const [notice, setNotice] = useState('');
+  const balances = useMemo(() => new Map(FINISHED_GOODS.map(product => [product.id, finishedBalance(product, finishedMovements)])), [finishedMovements]);
+  const report = useMemo(() => new Map(FINISHED_GOODS.map(product => [product.id, finishedBalance(product, finishedMovements, month)])), [finishedMovements, month]);
+  const inCategory = FINISHED_GOODS.filter(product => category === 'all' || product.category === category);
+  const brands = [...new Map(inCategory.filter(product => product.brand).map(product => [product.brand.toLowerCase(), product.brand])).values()].sort((a, b) => a.localeCompare(b));
+  const units = [...new Set(inCategory.map(product => product.unit))].sort();
+  const products = inCategory.filter(product => matchesFinishedGood(product, query) && (brand === 'all' || product.brand.toLowerCase() === brand.toLowerCase()) && (unit === 'all' || product.unit === unit));
+  const ids = new Set(products.map(product => product.id));
+  const movements = finishedMovements.filter(movement => ids.has(movement.productId) && (movementType === 'all' || movement.type === movementType))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+  const outOfStock = [...balances.values()].filter(balance => balance.currentStock !== null && balance.currentStock <= 0).length;
   const kpis = [
-    { label: "Finished goods", value: `${fmt(finishedRows.reduce((s, r) => s + r.current, 0))} pcs`, hint: "Across all models", alert: false },
-    { label: "Finished goods items", value: String(finishedRows.length), hint: "Items with recorded movements", alert: false },
-    { label: "Out of stock", value: String(finishedRows.filter(r => r.current <= 0).length), hint: "Finished goods with no available stock", alert: finishedRows.some(r => r.current <= 0) },
-    { label: "Stock movements", value: String(finishedMovements.length), hint: "Finished goods Stock IN and OUT", alert: false },
+    { label: 'Finished Goods', value: `${FINISHED_GOODS.length} variants`, hint: 'Distinct source variants · ctn and kg tracked separately' },
+    { label: 'Carrier Bags', value: `${FINISHED_GOODS.filter(product => product.category === 'carrier-bags').length} variants`, hint: 'Brands, packing sizes and customer configurations' },
+    { label: 'Flat Bags', value: `${FINISHED_GOODS.filter(product => product.category === 'flat-bags').length} variants`, hint: 'Includes plain, printed, garbage and laundry bags' },
+    { label: 'Out of Stock', value: String(outOfStock), hint: 'Recorded balances at or below zero · minimums not supplied' },
   ];
-
-  return (
-    <div className="space-y-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between print:hidden">
-        <div>
-          <h1 className="text-2xl font-semibold text-navy">Stock</h1>
-          <p className="mt-1 text-sm text-gray-500">Finished goods inventory, stock movements and monthly reports.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setDirection("IN")} className="flex items-center gap-2 rounded-card border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy">
-            <ArrowDownToLine size={16} /> Stock IN
-          </button>
-          <button type="button" onClick={() => setDirection("OUT")} className="flex items-center gap-2 rounded-card bg-navy px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-2">
-            <ArrowUpFromLine size={16} /> Stock OUT
-          </button>
-        </div>
-      </header>
-
-      <section aria-label="Stock summary" className="grid grid-cols-2 gap-4 lg:grid-cols-4 print:hidden">
-        {kpis.map((k) => (
-          <Card key={k.label}>
-            <p className="text-sm text-gray-500">{k.label}</p>
-            <p className={`mt-1 text-2xl font-semibold tracking-tight ${k.alert ? "text-amber-600" : "text-navy"}`}>{k.value}</p>
-            <p className="mt-1 text-xs text-gray-500">{k.hint}</p>
-          </Card>
-        ))}
-      </section>
-
-      {notice && <p role="status" className="rounded-card bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</p>}
-      <SalesOrderDemand />
-      <div role="tablist" aria-label="Stock views" className="flex gap-6 border-b border-gray-200 print:hidden">
-        {TABS.map(([id, label]) => (
-          <button
-            key={id}
-            role="tab"
-            type="button"
-            id={`tab-${id}`}
-            aria-selected={tab === id}
-            aria-controls={`panel-${id}`}
-            onClick={() => setTab(id)}
-            className={`-mb-px border-b-2 pb-3 text-sm font-medium transition focus:outline-none focus-visible:text-navy ${
-              tab === id ? "border-navy text-navy" : "border-transparent text-gray-500 hover:text-navy"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {direction && <InventoryMovementModal direction={direction} title="Finished Goods" categories={[["finished", "Finished Goods"]]} initialCategory="finished"
-        options={Object.entries(ITEMS).filter(([, item]) => item.category === "finished").map(([name, item]) => ({ id: name, name, category: "finished", unit: item.unit, available: finishedRows.find(r => r.key === name)?.current ?? 0 }))}
-        onClose={() => setDirection(null)} onSave={entry => {
-          const model = finishedMovements.find(m => m.item === entry.materialId)?.model;
-          addFinishedMovement({ date: entry.date, category: "finished", item: entry.materialId, model, type: direction === "IN" ? "in" : "out", qty: entry.quantity, ref: entry.reference, party: entry.remarks });
-          setNotice(`Stock ${direction} recorded for ${entry.materialId}.`);
-        }} />}
-      <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        {tab === "levels" && <LevelsTab />}
-        {tab === "movements" && <MovementsTab />}
-        {tab === "report" && <ReportTab />}
+  const resetList = () => { setLimit(25); setExpanded(null); };
+  const exportReport = () => downloadCsv(`finished-goods-${category}-${month}.csv`, [
+    ['Product ID', 'Product', 'Category', 'Customer', 'Size', 'Brand', 'Packing', 'Unit', 'Opening Stock', 'Total IN', 'Total OUT', 'Closing Stock'],
+    ...products.map(product => {
+      const row = report.get(product.id)!;
+      return [product.id, finishedGoodName(product), FINISHED_CATEGORY_LABEL[product.category], product.customer, product.size, product.brand, product.packingSize, product.unit, row.openingStock, row.stockIn, row.stockOut, row.currentStock];
+    }),
+  ]);
+  const count = tab === 'movements' ? movements.length : products.length;
+  return <div className="space-y-6">
+    <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between print:hidden">
+      <div><h1 className="text-2xl font-semibold text-navy">Stock</h1><p className="mt-1 text-sm text-gray-500">Finished goods inventory, stock movements and monthly reports.</p></div>
+      <div className="flex items-center gap-2"><button type="button" onClick={() => setDirection('IN')} className={BUTTON}><ArrowDownToLine size={16} />Stock IN</button><button type="button" onClick={() => setDirection('OUT')} className="flex items-center gap-2 rounded-card bg-navy px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:ring-2 focus-visible:ring-navy"><ArrowUpFromLine size={16} />Stock OUT</button></div>
+    </header>
+    <section aria-label="Stock summary" className="grid grid-cols-2 gap-4 lg:grid-cols-4 print:hidden">{kpis.map(card => <Card key={card.label}><p className="text-sm text-gray-500">{card.label}</p><p className="mt-1 text-2xl font-semibold text-navy">{card.value}</p><p className="mt-1 text-xs text-gray-500">{card.hint}</p></Card>)}</section>
+    {notice && <p role="status" className="rounded-card bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</p>}
+    <SalesOrderDemand />
+    <div role="tablist" aria-label="Stock views" className="flex gap-6 border-b border-gray-200 print:hidden">{TABS.map(([id, label]) => <button key={id} type="button" role="tab" id={`stock-tab-${id}`} aria-selected={tab === id} aria-controls={`stock-panel-${id}`} onClick={() => { setTab(id); resetList(); }} className={`-mb-px border-b-2 pb-3 text-sm font-medium ${tab === id ? 'border-navy text-navy' : 'border-transparent text-gray-500 hover:text-navy'}`}>{label}</button>)}</div>
+    <div role="group" aria-label="Finished goods categories" className="inline-flex flex-wrap rounded-card bg-gray-100 p-1 print:hidden">{([['all', 'All'], ...CATEGORIES] as [CategoryFilter, string][]).map(([id, label]) => <button key={id} type="button" aria-pressed={category === id} onClick={() => { setCategory(id); setBrand('all'); setUnit('all'); resetList(); }} className={`rounded-md px-3 py-1.5 text-sm font-medium ${category === id ? 'bg-white text-navy shadow-sm' : 'text-gray-600 hover:text-navy'}`}>{label}</button>)}</div>
+    <div className="flex flex-wrap items-end gap-3 print:hidden">
+      <div className="relative min-w-[220px] flex-1"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input aria-label="Search finished goods" type="search" placeholder="Search finished goods..." value={query} onChange={event => { setQuery(event.target.value); resetList(); }} className={`${ENTRY_INPUT} pl-9`} /></div>
+      <select aria-label="Brand" value={brand} onChange={event => { setBrand(event.target.value); resetList(); }} className={`${ENTRY_INPUT} !w-auto max-w-[220px]`}><option value="all">All brands</option>{brands.map(value => <option key={value}>{value}</option>)}</select>
+      <select aria-label="Unit" value={unit} onChange={event => { setUnit(event.target.value); resetList(); }} className={`${ENTRY_INPUT} !w-auto`}><option value="all">All units</option>{units.map(value => <option key={value}>{value}</option>)}</select>
+      {tab === 'movements' && <select aria-label="Movement type" value={movementType} onChange={event => { setMovementType(event.target.value); resetList(); }} className={`${ENTRY_INPUT} !w-auto`}><option value="all">IN and OUT</option><option value="IN">IN only</option><option value="OUT">OUT only</option></select>}
+      {tab === 'report' && <label className="flex items-center gap-2 text-sm text-gray-500">Month<input aria-label="Report month" type="month" value={month} onChange={event => { if (event.target.value) setMonth(event.target.value); setExpanded(null); }} className={ENTRY_INPUT} /></label>}
+    </div>
+    <p className="text-xs text-gray-500">Packing retains the workbook’s packing stock groups in kg, separately from packed bag variants in cartons. Its May 2026 template has no recorded quantities. Carrier and Flat Bag movements are dated September, with two Flat Bag entries on October 1.</p>
+    <div role="tabpanel" id={`stock-panel-${tab}`} aria-labelledby={`stock-tab-${tab}`} className="space-y-4">
+      {tab === 'report' && <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold text-navy">Finished goods — {month}</h2><p className="mt-1 text-xs text-gray-500">Closing = Opening + Total IN − Total OUT. Expand a product for daily movements.</p></div><div className="flex gap-2 print:hidden"><button type="button" onClick={exportReport} className={BUTTON}><Download size={16} />Export CSV</button><button type="button" onClick={() => { setLimit(products.length); requestAnimationFrame(() => window.print()); }} className={BUTTON}><Printer size={16} />Print report</button></div></div>}
+      <div className="overflow-x-auto rounded-card border border-gray-200 bg-white">
+        {tab === 'movements' ? <table className="w-full min-w-[900px] text-left text-sm">
+          <thead className="border-b border-gray-200 bg-gray-50 text-xs text-gray-500"><tr>{['Date', 'Product / Variant', 'Category', 'Movement', 'Quantity', 'Unit', 'Reference', 'Customer / Destination'].map(label => <th key={label} scope="col" className={TH}>{label}</th>)}</tr></thead>
+          <tbody className="divide-y divide-gray-100">{movements.slice(0, limit).map(movement => {
+            const product = FINISHED_BY_ID.get(movement.productId)!;
+            return <tr key={movement.id} className="hover:bg-gray-50"><td className={`${TD} whitespace-nowrap text-gray-500`}>{movement.date}</td><td className={TD}><ProductCell product={product} variant /></td><td className={TD}>{FINISHED_CATEGORY_LABEL[product.category]}</td><td className={TD}><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${movement.type === 'IN' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{movement.type}</span></td><td className={`${TD} text-right tabular-nums`}>{fmt(movement.quantity)}</td><td className={TD}>{movement.unit}</td><td className={TD}>{movement.reference || '—'}{movement.remarks && <p className="mt-1 text-xs text-gray-400">{movement.remarks}</p>}</td><td className={TD}>{movement.customer || '—'}</td></tr>;
+          })}{!movements.length && <tr><td colSpan={8} className="p-10 text-center text-gray-500">No finished-goods movements match your filters.</td></tr>}</tbody>
+        </table> : <table className="w-full min-w-[850px] text-left text-sm">
+          <thead className="border-b border-gray-200 bg-gray-50 text-xs text-gray-500"><tr>{(tab === 'levels' ? ['Product / Item', 'Category', 'Size', 'Brand', 'Packing', 'Current Stock', 'Unit', 'Status'] : ['Product / Variant', 'Category', 'Opening Stock', 'Total IN', 'Total OUT', 'Closing Stock', 'Unit', 'Details']).map(label => <th key={label} scope="col" className={TH}>{label}</th>)}</tr></thead>
+          <tbody className="divide-y divide-gray-100">{products.slice(0, limit).map(product => {
+            const row = tab === 'report' ? report.get(product.id)! : balances.get(product.id)!;
+            const daily = finishedMovements.filter(movement => movement.productId === product.id && movement.date.startsWith(month)).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+            return <Fragment key={product.id}>
+              <tr className="hover:bg-gray-50"><td className={TD}><ProductCell product={product} variant={tab === 'report'} /></td><td className={`${TD} text-gray-500`}>{FINISHED_CATEGORY_LABEL[product.category]}</td>
+                {tab === 'levels' ? <><td className={TD}>{product.size || '—'}</td><td className={TD}>{product.brand || '—'}</td><td className={TD}>{product.packingSize || '—'}</td></> : [row.openingStock, row.stockIn, row.stockOut].map((value, index) => <td key={index} className={`${TD} text-right tabular-nums text-gray-600`}>{fmt(value)}</td>)}
+                <td className={`${TD} text-right font-semibold tabular-nums text-navy`}>{fmt(row.currentStock)}</td><td className={TD}>{product.unit}</td><td className={TD}>{tab === 'levels' ? <StockStatus quantity={row.currentStock} /> : <button type="button" aria-expanded={expanded === product.id} aria-controls={`daily-${product.id}`} aria-label={`Daily movements for ${finishedGoodLabel(product)}`} onClick={() => setExpanded(expanded === product.id ? null : product.id)} className="flex items-center gap-1 whitespace-nowrap text-xs font-medium text-navy hover:underline"><ChevronDown size={14} />Daily movements</button>}</td>
+              </tr>
+              {tab === 'report' && expanded === product.id && <tr><td colSpan={8} id={`daily-${product.id}`} className="bg-gray-50 p-4"><p className="mb-2 text-xs text-gray-500">Source: {product.sourceSheet}, row {product.sourceRow}. Reference opening: {product.openingDate}.</p>{daily.length ? <table aria-label={`Daily movements for ${finishedGoodLabel(product)}`} className="w-full text-left text-xs"><thead><tr>{['Date', 'Movement', 'Quantity', 'Unit', 'Reference', 'Customer / Destination'].map(label => <th scope="col" key={label} className="px-3 py-2 font-medium text-gray-500">{label}</th>)}</tr></thead><tbody>{daily.map(movement => <tr key={movement.id}><td className="px-3 py-2">{movement.date}</td><td className="px-3 py-2">{movement.type}</td><td className="px-3 py-2">{fmt(movement.quantity)}</td><td className="px-3 py-2">{movement.unit}</td><td className="px-3 py-2">{movement.reference || '—'}</td><td className="px-3 py-2">{movement.customer || '—'}</td></tr>)}</tbody></table> : <p className="text-sm text-gray-500">No daily movements in this month.</p>}</td></tr>}
+            </Fragment>;
+          })}{!products.length && <tr><td colSpan={8} className="p-10 text-center text-gray-500">No finished goods match your filters.</td></tr>}</tbody>
+        </table>}
+        <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3 text-sm text-gray-500 print:hidden"><p aria-live="polite">Showing {Math.min(limit, count)} of {count}</p>{limit < count && <button type="button" onClick={() => setLimit(limit + 25)} className="font-medium text-navy hover:underline">Show more</button>}</div>
       </div>
     </div>
-  );
+    <p className="text-xs text-gray-500">Frontend entries survive navigation and reset on refresh. Unrecorded opening balances remain unknown; sales orders do not deduct physical stock.</p>
+    {direction && <InventoryMovementModal finishedGoods direction={direction} title="Finished Goods" categories={CATEGORIES} initialCategory={category === 'all' ? 'carrier-bags' : category}
+      options={FINISHED_GOODS.map(product => ({ id: product.id, name: finishedGoodLabel(product), category: product.category, unit: product.unit, openingDate: product.openingDate, available: balances.get(product.id)!.currentStock,
+        detail: `${FINISHED_CATEGORY_LABEL[product.category]} · ${product.subgroup} · Source row ${product.sourceRow}` }))}
+      onClose={() => setDirection(null)} onSave={entry => {
+        const product = FINISHED_BY_ID.get(entry.materialId)!;
+        addFinishedMovement({ productId: product.id, date: entry.date, type: direction, quantity: entry.quantity, unit: product.unit, reference: entry.reference, remarks: entry.remarks, customer: entry.customer });
+        setNotice(`Stock ${direction} recorded: ${fmt(entry.quantity)} ${product.unit} · ${finishedGoodLabel(product)}.`);
+      }} />}
+  </div>;
 }
