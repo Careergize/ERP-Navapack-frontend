@@ -1,3 +1,4 @@
+import { SalesOrdersProvider } from '@/context/SalesOrdersContext';
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { AppShell } from "@/components/layout/AppShell";
@@ -8,7 +9,7 @@ import { JobCardList } from "@/pages/JobCards/JobCardList";
 import { JobCardDetail } from "@/pages/JobCards/JobCardDetail";
 import { TrackTrace } from "@/pages/TrackTrace/TrackTrace";
 import { StockPage } from "@/pages/Stocks/stocks";
-import { Placeholder } from "@/pages/Placeholder";
+
 import { RecyclingPage } from "@/pages/Recycling/RecyclingPage";
 import { CostingPage } from "@/pages/Costing/CostingPage";
 import { MastersPage } from "@/pages/Masters/MastersPage";
@@ -33,7 +34,7 @@ function AppRoutes() {
       >
         <Route path="/" element={<Dashboard />} />
         <Route path="/sales-orders" element={<SalesOrderList />} />
-        <Route path="/sales-orders/new" element={<Placeholder title="New Sales Order" />} />
+        <Route path="/sales-orders/new" element={<SalesOrderList />} />
         <Route path="/job-cards" element={<JobCardList />} />
         <Route path="/job-cards/:id" element={<JobCardDetail />} />
         <Route path="/stock" element={<StockPage />} />
@@ -49,7 +50,7 @@ function AppRoutes() {
 export function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <SalesOrdersProvider><AppRoutes /></SalesOrdersProvider>
     </AuthProvider>
   );
 }

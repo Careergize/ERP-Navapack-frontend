@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Download, FileText, Info, Plus, Search, X } from "lucide-react";
-import { api } from "@/lib/api";
-import { MOCK_SALES_ORDERS } from "@/lib/mockData";
+import { useSalesOrders } from '@/context/SalesOrdersContext';
+import { NewSalesOrderModal } from './NewSalesOrderModal';
+import { useLocation } from 'react-router-dom';
+
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { SalesOrder } from "@/types";
@@ -114,29 +116,16 @@ function TableSkeleton() {
 // ---------------------------------------------------------------------------
 
 export function SalesOrderList() {
-  const [orders, setOrders] = useState<SalesOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [usingDemoData, setUsingDemoData] = useState(false);
-
+  const { orders } = useSalesOrders();
+  const location = useLocation();
+  const [showNewOrder, setShowNewOrder] = useState(location.pathname === '/sales-orders/new');
+  const [success, setSuccess] = useState('');
+  const loading = false;
+  const usingDemoData = true;
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sort, setSort] = useState<SortKey>("newest");
   const [page, setPage] = useState(1);
-
-  useEffect(() => {
-    api
-      .get<SalesOrder[]>("/sales-orders/")
-      .then(({ data }) => {
-        if (!Array.isArray(data)) throw new Error("Sales orders API returned an invalid response");
-        setOrders(data);
-      })
-      .catch(() => {
-        // No backend yet in demo mode — fall back to mock data instead of an empty screen.
-        setOrders(MOCK_SALES_ORDERS);
-        setUsingDemoData(true);
-      })
-      .finally(() => setLoading(false));
-  }, []);
 
   useEffect(() => setPage(1), [query, statusFilter, sort]);
 
@@ -162,7 +151,7 @@ export function SalesOrderList() {
     const rows = orders.filter(
       (o) =>
         (statusFilter === "all" || o.status === statusFilter) &&
-        (!q || o.orderNumber.toLowerCase().includes(q) || o.customerName.toLowerCase().includes(q)),
+        (!q || o.orderNumber.toLowerCase().includes(q) || o.customerName.toLowerCase().includes(q) || o.marketingPersonName?.toLowerCase().includes(q)),
     );
     return rows.sort((a, b) => {
       switch (sort) {
@@ -191,6 +180,8 @@ export function SalesOrderList() {
 
   return (
     <div className="space-y-6">
+      {showNewOrder && <NewSalesOrderModal onClose={() => setShowNewOrder(false)} onCreated={(number) => { setShowNewOrder(false); setSuccess(`${number} created successfully.`); setQuery(''); setStatusFilter('all'); setSort('newest'); setPage(1); }} />}
+      {success && <p role="status" className="rounded-card border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</p>}
       {/* Header */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -206,19 +197,19 @@ export function SalesOrderList() {
           >
             <Download size={16} /> Export CSV
           </button>
-          <Link
-            to="/sales-orders/new"
+          <button
+            type="button" onClick={() => setShowNewOrder(true)}
             className="flex items-center gap-2 rounded-card bg-navy px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-2"
           >
             <Plus size={16} /> New order
-          </Link>
+          </button>
         </div>
       </header>
 
       {usingDemoData && (
         <div role="status" className="flex items-start gap-2 rounded-card border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
           <Info size={16} className="mt-0.5 shrink-0" />
-          The server could not be reached, so you are seeing demo orders. Changes will not be saved.
+          Frontend demo orders. Changes are shared with Stock during this session and reset on browser refresh.
         </div>
       )}
 
@@ -243,7 +234,7 @@ export function SalesOrderList() {
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by order number or customer"
+              placeholder="Search by order number, customer or marketing person"
               className="w-full rounded-card border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
             />
           </div>
@@ -303,9 +294,9 @@ export function SalesOrderList() {
           <div className="px-6 py-12 text-center">
             <p className="font-medium text-navy">No sales orders yet</p>
             <p className="mt-1 text-sm text-gray-500">Create an order and allocate a job card to send it to the Production Manager.</p>
-            <Link to="/sales-orders/new" className="mt-4 inline-flex items-center gap-2 rounded-card bg-navy px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+            <button type="button" onClick={() => setShowNewOrder(true)} className="mt-4 inline-flex items-center gap-2 rounded-card bg-navy px-4 py-2 text-sm font-medium text-white hover:opacity-90">
               <Plus size={16} /> New order
-            </Link>
+            </button>
           </div>
         ) : filtered.length === 0 ? (
           <div className="px-6 py-12 text-center">

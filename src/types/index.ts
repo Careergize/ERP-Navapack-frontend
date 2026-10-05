@@ -24,7 +24,23 @@ export interface User {
   department?: string;
 }
 
+export type CustomerType = "B2B" | "B2C";
+export interface SalesOrderItem {
+  id: string;
+  itemId?: string;
+  itemName: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  totalPrice: number;
+}
+
 export interface SalesOrder {
+  marketingPersonName?: string;
+  customerType?: CustomerType;
+  requisitionOrder?: string;
+  items?: SalesOrderItem[];
+  orderTotal?: number;
   id: string;
   orderNumber: string;
   customerName: string;

@@ -1,3 +1,4 @@
+import { SalesOrderDemand } from './SalesOrderDemand';
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowDownToLine, ArrowUpFromLine, Download, Printer, Search } from "lucide-react";
@@ -542,6 +543,7 @@ export function StockPage() {
         ))}
       </section>
 
+      <SalesOrderDemand />
       <div role="tablist" aria-label="Stock views" className="flex gap-6 border-b border-gray-200 print:hidden">
         {TABS.map(([id, label]) => (
           <button
