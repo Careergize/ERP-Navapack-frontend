@@ -1,7 +1,8 @@
-import { ITEMS, MOVEMENTS, type Category, type Direction, type Movement } from '@/lib/stockData';
+import { ITEMS, type Direction, type Movement } from '@/lib/stockData';
 import { SalesOrderDemand } from './SalesOrderDemand';
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useInventory } from '@/context/InventoryContext';
+import { InventoryMovementModal } from '@/components/ui/InventoryMovementModal';
 import { ArrowDownToLine, ArrowUpFromLine, Download, Printer, Search } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 
@@ -21,7 +22,6 @@ interface Row {
   outward: number;
   closing: number;
   minLevel?: number;
-  avgCost?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -33,9 +33,7 @@ interface Row {
 // ---------------------------------------------------------------------------
 
 const fmt = (n: number) => n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
-const money = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
-const toLocal = (m: Movement) => (m.price === undefined ? undefined : m.currency === "USD" ? m.price * (m.rate ?? 1) : m.price);
-const currentMonth = () => new Date().toISOString().slice(0, 7);
+const currentMonth = () => new Date().toLocaleDateString('en-CA').slice(0, 7);
 
 const formatDate = (d: string) =>
   new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -44,13 +42,12 @@ const monthLabel = (ym: string) =>
   new Date(`${ym}-01`).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 
 // Item-wise or model-wise rows for a category. `month` (YYYY-MM) drives opening / inward / outward / closing.
-function buildRows(movements: Movement[], category: Category, groupBy: GroupBy, month: string): Row[] {
+function buildRows(movements: Movement[], groupBy: GroupBy, month: string): Row[] {
   const rows = new Map<string, Row>();
-  const cost = new Map<string, { value: number; qty: number }>();
   const monthStart = `${month}-01`;
 
-  for (const m of movements.filter((x) => x.category === category)) {
-    const byModel = category === "finished" && groupBy === "model";
+  for (const m of movements.filter((x) => x.category === 'finished')) {
+    const byModel = groupBy === "model";
     const key = byModel ? (m.model ?? "No model") : m.item;
     const master = ITEMS[m.item];
     const row =
@@ -63,19 +60,11 @@ function buildRows(movements: Movement[], category: Category, groupBy: GroupBy, 
     else if (m.date.startsWith(month)) m.type === "in" ? (row.inward += m.qty) : (row.outward += m.qty);
     rows.set(key, row);
 
-    const local = toLocal(m);
-    if (m.type === "in" && local !== undefined) {
-      const c = cost.get(key) ?? { value: 0, qty: 0 };
-      c.value += local * m.qty;
-      c.qty += m.qty;
-      cost.set(key, c);
-    }
   }
 
   return [...rows.values()]
     .map((r) => {
-      const c = cost.get(r.key);
-      return { ...r, closing: r.opening + r.inward - r.outward, avgCost: c ? c.value / c.qty : undefined };
+      return { ...r, closing: r.opening + r.inward - r.outward };
     })
     .sort((a, b) => a.key.localeCompare(b.key));
 }
@@ -95,7 +84,6 @@ function downloadCsv(filename: string, header: string[], lines: (string | number
 // Small pieces
 // ---------------------------------------------------------------------------
 
-const CATEGORY_LABEL: Record<Category, string> = { raw: "Raw materials", finished: "Finished goods", granules: "Recycled granules" };
 
 const TH = "px-4 py-3 font-medium";
 const INPUT =
@@ -136,34 +124,23 @@ function StockStatus({ row }: { row: Row }) {
 // ---------------------------------------------------------------------------
 
 function LevelsTab() {
-  const [category, setCategory] = useState<Category>("raw");
+  const { finishedMovements } = useInventory();
+
   const [groupBy, setGroupBy] = useState<GroupBy>("item");
-  const rows = useMemo(() => buildRows(MOVEMENTS, category, groupBy, currentMonth()), [category, groupBy]);
-  const isRaw = category === "raw";
+  const rows = useMemo(() => buildRows(finishedMovements, groupBy, currentMonth()), [finishedMovements, groupBy]);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Segmented
-          label="Stock category"
-          value={category}
-          onChange={setCategory}
-          options={[["raw", "Raw materials"], ["finished", "Finished goods"], ["granules", "Granules"]]}
-        />
-        {category === "finished" && (
-          <Segmented label="Group finished goods" value={groupBy} onChange={setGroupBy} options={[["item", "Item-wise"], ["model", "Model-wise"]]} />
-        )}
+        <Segmented label="Group finished goods" value={groupBy} onChange={setGroupBy} options={[["item", "Item-wise"], ["model", "Model-wise"]]} />
       </div>
 
       <div className="overflow-x-auto rounded-card border border-gray-200 bg-white">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="border-b border-gray-200 bg-gray-50 text-xs text-gray-500">
             <tr>
-              <th className={TH}>{category === "finished" && groupBy === "model" ? "Model" : "Item"}</th>
+              <th className={TH}>{groupBy === "model" ? "Model" : "Item"}</th>
               <th className={`${TH} text-right`}>In stock</th>
-              {isRaw && <th className={`${TH} text-right`}>Minimum</th>}
-              {isRaw && <th className={`${TH} text-right`}>Avg cost</th>}
-              {isRaw && <th className={`${TH} text-right`}>Stock value</th>}
               <th className={TH}>Status</th>
             </tr>
           </thead>
@@ -174,9 +151,6 @@ function LevelsTab() {
                 <td className="px-4 py-3 text-right tabular-nums text-navy">
                   <span className="font-semibold">{fmt(r.current)}</span> <span className="text-gray-400">{r.unit}</span>
                 </td>
-                {isRaw && <td className="px-4 py-3 text-right tabular-nums text-gray-500">{r.minLevel !== undefined ? fmt(r.minLevel) : "—"}</td>}
-                {isRaw && <td className="px-4 py-3 text-right tabular-nums text-gray-600">{r.avgCost !== undefined ? `${money(r.avgCost)}/${r.unit}` : "—"}</td>}
-                {isRaw && <td className="px-4 py-3 text-right tabular-nums text-gray-900">{r.avgCost !== undefined ? money(r.current * r.avgCost) : "—"}</td>}
                 <td className="px-4 py-3">
                   <StockStatus row={r} />
                 </td>
@@ -185,46 +159,38 @@ function LevelsTab() {
           </tbody>
         </table>
       </div>
-      {isRaw && <p className="text-xs text-gray-500">Average cost includes USD purchases converted at the exchange rate entered on each inward entry.</p>}
     </div>
   );
 }
 
 function MovementsTab() {
+  const { finishedMovements } = useInventory();
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<Category | "all">("all");
   const [type, setType] = useState<Direction | "all">("all");
   const [limit, setLimit] = useState(12);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return MOVEMENTS.filter(
+    return finishedMovements.filter(
       (m) =>
-        (category === "all" || m.category === category) &&
         (type === "all" || m.type === type) &&
         (!q || [m.item, m.ref, m.party].some((s) => s.toLowerCase().includes(q))),
     ).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
-  }, [query, category, type]);
+  }, [finishedMovements, query, type]);
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">Stock-in and stock-out are recorded automatically from inward entries, job card issues, production output and dispatches.</p>
+      <p className="text-sm text-gray-500">Finished goods Stock IN and Stock OUT are frontend simulations. Sales Order Demand does not deduct physical stock.</p>
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
           <label htmlFor="mv-search" className="sr-only">Search movements</label>
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input id="mv-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by item, reference or party" className={`${INPUT} w-full pl-9`} />
         </div>
-        <select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value as Category | "all")} className={INPUT}>
-          <option value="all">All categories</option>
-          {(Object.keys(CATEGORY_LABEL) as Category[]).map((c) => (
-            <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>
-          ))}
-        </select>
         <select aria-label="Direction" value={type} onChange={(e) => setType(e.target.value as Direction | "all")} className={INPUT}>
-          <option value="all">Inward and outward</option>
-          <option value="in">Inward only</option>
-          <option value="out">Outward only</option>
+          <option value="all">Stock IN and OUT</option>
+          <option value="in">Stock IN only</option>
+          <option value="out">Stock OUT only</option>
         </select>
       </div>
 
@@ -238,17 +204,16 @@ function MovementsTab() {
               <th className={`${TH} text-right`}>Quantity</th>
               <th className={TH}>Reference</th>
               <th className={TH}>Supplier / department / customer</th>
-              <th className={`${TH} text-right`}>Cost per unit</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-gray-500">No movements match your filters.</td>
+                <td colSpan={6} className="px-4 py-10 text-center text-gray-500">No movements match your filters.</td>
               </tr>
             )}
             {rows.slice(0, limit).map((m) => {
-              const local = toLocal(m);
+
               return (
                 <tr key={m.id} className="hover:bg-gray-50">
                   <td className="whitespace-nowrap px-4 py-3 text-gray-500">{formatDate(m.date)}</td>
@@ -256,20 +221,12 @@ function MovementsTab() {
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${m.type === "in" ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20" : "bg-amber-50 text-amber-700 ring-amber-600/20"}`}>
                       {m.type === "in" ? <ArrowDownToLine size={12} /> : <ArrowUpFromLine size={12} />}
-                      {m.type === "in" ? "Inward" : "Outward"}
+                      {m.type === "in" ? "Stock IN" : "Stock OUT"}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-gray-900">{fmt(m.qty)} <span className="text-gray-400">{ITEMS[m.item].unit}</span></td>
                   <td className="px-4 py-3 text-gray-600">{m.ref}</td>
                   <td className="px-4 py-3 text-gray-600">{m.party}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gray-600">
-                    {local === undefined ? "—" : (
-                      <>
-                        {money(local)}
-                        {m.currency === "USD" && <span className="block text-xs text-gray-400">${m.price} × {m.rate}</span>}
-                      </>
-                    )}
-                  </td>
                 </tr>
               );
             })}
@@ -289,19 +246,20 @@ function MovementsTab() {
 }
 
 function ReportTab() {
+  const { finishedMovements } = useInventory();
   const [month, setMonth] = useState(currentMonth());
-  const [category, setCategory] = useState<Category>("raw");
+
   const [groupBy, setGroupBy] = useState<GroupBy>("item");
 
-  const rows = useMemo(() => buildRows(MOVEMENTS, category, groupBy, month), [category, groupBy, month]);
+  const rows = useMemo(() => buildRows(finishedMovements, groupBy, month), [finishedMovements, groupBy, month]);
   const sameUnit = new Set(rows.map((r) => r.unit)).size === 1;
   const totals = rows.reduce((t, r) => ({ opening: t.opening + r.opening, inward: t.inward + r.inward, outward: t.outward + r.outward, closing: t.closing + r.closing }), { opening: 0, inward: 0, outward: 0, closing: 0 });
-  const title = `${CATEGORY_LABEL[category]} stock report, ${monthLabel(month)}`;
+  const title = `Finished goods stock report, ${monthLabel(month)}`;
 
   const exportCsv = () =>
     downloadCsv(
-      `stock-report-${category}-${month}.csv`,
-      [category === "finished" && groupBy === "model" ? "Model" : "Item", "Unit", "Opening stock", "Total inward", "Total outward", "Closing stock"],
+      `stock-report-finished-${month}.csv`,
+      [groupBy === "model" ? "Model" : "Item", "Unit", "Opening stock", "Stock IN", "Stock OUT", "Closing stock"],
       rows.map((r) => [r.key, r.unit, r.opening, r.inward, r.outward, r.closing]),
     );
 
@@ -313,10 +271,7 @@ function ReportTab() {
             <label htmlFor="rep-month" className="block text-sm text-gray-500">Month</label>
             <input id="rep-month" type="month" value={month} max={currentMonth()} onChange={(e) => e.target.value && setMonth(e.target.value)} className={`${INPUT} mt-1`} />
           </div>
-          <Segmented label="Report category" value={category} onChange={setCategory} options={[["raw", "Raw materials"], ["finished", "Finished goods"], ["granules", "Granules"]]} />
-          {category === "finished" && (
-            <Segmented label="Group finished goods" value={groupBy} onChange={setGroupBy} options={[["item", "Item-wise"], ["model", "Model-wise"]]} />
-          )}
+          <Segmented label="Group finished goods" value={groupBy} onChange={setGroupBy} options={[["item", "Item-wise"], ["model", "Model-wise"]]} />
         </div>
         <div className="flex gap-2">
           <button type="button" onClick={exportCsv} className="flex items-center gap-2 rounded-card border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy">
@@ -331,15 +286,15 @@ function ReportTab() {
       <div className="overflow-x-auto rounded-card border border-gray-200 bg-white">
         <div className="border-b border-gray-200 px-4 py-4">
           <h2 className="text-base font-semibold text-navy">{title}</h2>
-          <p className="mt-0.5 text-xs text-gray-500">Closing stock = opening stock + total inward − total outward</p>
+          <p className="mt-0.5 text-xs text-gray-500">Closing stock = opening stock + Stock IN − Stock OUT</p>
         </div>
         <table className="w-full min-w-[600px] text-left text-sm">
           <thead className="border-b border-gray-200 bg-gray-50 text-xs text-gray-500">
             <tr>
-              <th className={TH}>{category === "finished" && groupBy === "model" ? "Model" : "Item"}</th>
+              <th className={TH}>{groupBy === "model" ? "Model" : "Item"}</th>
               <th className={`${TH} text-right`}>Opening stock</th>
-              <th className={`${TH} text-right`}>Total inward</th>
-              <th className={`${TH} text-right`}>Total outward</th>
+              <th className={`${TH} text-right`}>Stock IN</th>
+              <th className={`${TH} text-right`}>Stock OUT</th>
               <th className={`${TH} text-right`}>Closing stock</th>
             </tr>
           </thead>
@@ -380,24 +335,15 @@ const TABS: [Tab, string][] = [["levels", "Stock levels"], ["movements", "Moveme
 export function StockPage() {
   const [tab, setTab] = useState<Tab>("levels");
 
-  const summary = useMemo(() => {
-    const month = currentMonth();
-    const raw = buildRows(MOVEMENTS, "raw", "item", month);
-    const finished = buildRows(MOVEMENTS, "finished", "item", month);
-    const granules = buildRows(MOVEMENTS, "granules", "item", month);
-    return {
-      rawValue: raw.reduce((s, r) => s + (r.avgCost ? r.current * r.avgCost : 0), 0),
-      low: raw.filter((r) => r.minLevel !== undefined && r.current < r.minLevel).length,
-      finished: finished.reduce((s, r) => s + r.current, 0),
-      granules: granules.reduce((s, r) => s + r.current, 0),
-    };
-  }, []);
-
+  const { finishedMovements, addFinishedMovement } = useInventory();
+  const [direction, setDirection] = useState<"IN" | "OUT" | null>(null);
+  const [notice, setNotice] = useState("");
+  const finishedRows = buildRows(finishedMovements, "item", currentMonth());
   const kpis = [
-    { label: "Raw material value", value: money(summary.rawValue), hint: "At average cost", alert: false },
-    { label: "Below minimum level", value: String(summary.low), hint: summary.low ? "Reorder these raw materials" : "All raw materials are above minimum", alert: summary.low > 0 },
-    { label: "Finished goods", value: `${fmt(summary.finished)} pcs`, hint: "Across all models", alert: false },
-    { label: "Granules in stock", value: `${fmt(summary.granules)} kg`, hint: "Available to sell or transfer", alert: false },
+    { label: "Finished goods", value: `${fmt(finishedRows.reduce((s, r) => s + r.current, 0))} pcs`, hint: "Across all models", alert: false },
+    { label: "Finished goods items", value: String(finishedRows.length), hint: "Items with recorded movements", alert: false },
+    { label: "Out of stock", value: String(finishedRows.filter(r => r.current <= 0).length), hint: "Finished goods with no available stock", alert: finishedRows.some(r => r.current <= 0) },
+    { label: "Stock movements", value: String(finishedMovements.length), hint: "Finished goods Stock IN and OUT", alert: false },
   ];
 
   return (
@@ -405,15 +351,15 @@ export function StockPage() {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between print:hidden">
         <div>
           <h1 className="text-2xl font-semibold text-navy">Stock</h1>
-          <p className="mt-1 text-sm text-gray-500">Raw materials, finished goods and recycled granules, with monthly reports.</p>
+          <p className="mt-1 text-sm text-gray-500">Finished goods inventory, stock movements and monthly reports.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link to="/stock/inward/new" className="flex items-center gap-2 rounded-card border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy">
-            <ArrowDownToLine size={16} /> Record inward
-          </Link>
-          <Link to="/stock/outward/new" className="flex items-center gap-2 rounded-card bg-navy px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-2">
-            <ArrowUpFromLine size={16} /> Record outward
-          </Link>
+          <button type="button" onClick={() => setDirection("IN")} className="flex items-center gap-2 rounded-card border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy">
+            <ArrowDownToLine size={16} /> Stock IN
+          </button>
+          <button type="button" onClick={() => setDirection("OUT")} className="flex items-center gap-2 rounded-card bg-navy px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-2">
+            <ArrowUpFromLine size={16} /> Stock OUT
+          </button>
         </div>
       </header>
 
@@ -427,6 +373,7 @@ export function StockPage() {
         ))}
       </section>
 
+      {notice && <p role="status" className="rounded-card bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</p>}
       <SalesOrderDemand />
       <div role="tablist" aria-label="Stock views" className="flex gap-6 border-b border-gray-200 print:hidden">
         {TABS.map(([id, label]) => (
@@ -447,6 +394,13 @@ export function StockPage() {
         ))}
       </div>
 
+      {direction && <InventoryMovementModal direction={direction} title="Finished Goods" categories={[["finished", "Finished Goods"]]} initialCategory="finished"
+        options={Object.entries(ITEMS).filter(([, item]) => item.category === "finished").map(([name, item]) => ({ id: name, name, category: "finished", unit: item.unit, available: finishedRows.find(r => r.key === name)?.current ?? 0 }))}
+        onClose={() => setDirection(null)} onSave={entry => {
+          const model = finishedMovements.find(m => m.item === entry.materialId)?.model;
+          addFinishedMovement({ date: entry.date, category: "finished", item: entry.materialId, model, type: direction === "IN" ? "in" : "out", qty: entry.quantity, ref: entry.reference, party: entry.remarks });
+          setNotice(`Stock ${direction} recorded for ${entry.materialId}.`);
+        }} />}
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === "levels" && <LevelsTab />}
         {tab === "movements" && <MovementsTab />}
