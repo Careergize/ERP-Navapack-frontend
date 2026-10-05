@@ -44,8 +44,12 @@ const isThisMonth = (d: string) => {
 
 function downloadCsv(rows: SalesOrder[]) {
   const escape = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
-  const header = ["Order number", "Customer", "Date", "Status", "Job cards"];
-  const lines = rows.map((o) => [o.orderNumber, o.customerName, o.date, o.status, o.jobCardIds.length].map(escape).join(","));
+  const header = ["Order number", "Customer Name", "Order Date", "Marketing Person Name", "Customer Type", "Requisition Order", "Item", "Quantity", "Unit", "Per Unit Price", "Total Price", "Order Total", "Status", "Job cards"];
+  const lines = rows.flatMap((o) => (o.items?.length ? o.items : [undefined]).map((item) => [
+    o.orderNumber, o.customerName, o.date, o.marketingPersonName ?? "", o.customerType ?? "", o.requisitionOrder ?? "",
+    item?.itemName ?? "", item?.quantity ?? "", item?.unit ?? "", item?.unitPrice ?? "", item?.totalPrice ?? "",
+    o.orderTotal ?? "", o.status, o.jobCardIds.length,
+  ].map(escape).join(",")));
   const blob = new Blob([[header.map(escape).join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -308,12 +312,15 @@ export function SalesOrderList() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] text-left text-sm">
+            <table className="w-full min-w-[1600px] text-left text-sm">
               <thead className="border-b border-gray-200 bg-gray-50 text-xs text-gray-500">
                 <tr>
                   <th scope="col" className="px-4 py-3 font-medium">Order</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Customer</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Date</th>
+                  <th scope="col" className="px-4 py-3 font-medium">Customer Name</th>
+                  <th scope="col" className="px-4 py-3 font-medium">Order Date</th>
+                  {['Marketing Person Name', 'Customer Type', 'Requisition Order', 'Item', 'Quantity', 'Unit', 'Per Unit Price', 'Total Price', 'Order Total'].map(label => (
+                    <th key={label} scope="col" className="whitespace-nowrap px-4 py-3 font-medium">{label}</th>
+                  ))}
                   <th scope="col" className="px-4 py-3 font-medium">Job card</th>
                   <th scope="col" className="px-4 py-3 font-medium">Status</th>
                   <th scope="col" className="px-4 py-3"><span className="sr-only">Open</span></th>
@@ -329,6 +336,21 @@ export function SalesOrderList() {
                     </td>
                     <td className="px-4 py-3 text-gray-700">{order.customerName}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-gray-500">{formatDate(order.date)}</td>
+                    <td className="px-4 py-3 text-gray-700">{order.marketingPersonName || '—'}</td>
+                    <td className="px-4 py-3 text-gray-700">{order.customerType || '—'}</td>
+                    <td className="px-4 py-3 text-gray-700">{order.requisitionOrder || '—'}</td>
+                    {(['itemName', 'quantity', 'unit', 'unitPrice', 'totalPrice'] as const).map(field => (
+                      <td key={field} className="px-4 py-3 align-top text-gray-700">
+                        {order.items?.length ? order.items.map(item => (
+                          <div key={item.id} className="whitespace-nowrap py-1 tabular-nums">
+                            {field === 'unitPrice' || field === 'totalPrice'
+                              ? item[field].toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                              : item[field]}
+                          </div>
+                        )) : '—'}
+                      </td>
+                    ))}
+                    <td className="whitespace-nowrap px-4 py-3 font-semibold tabular-nums text-navy">{order.orderTotal === undefined ? '—' : order.orderTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     <td className="px-4 py-3">
                       <JobCardLinks order={order} />
                     </td>
