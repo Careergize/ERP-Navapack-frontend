@@ -33,8 +33,12 @@ Planned work, not implemented APIs or database design. Check items only after ve
 ## Job Cards and Production
 
 - [ ] Verify existing frontend read/stage-write expectations with actual server contracts.
-- [ ] Persist per-card stage requirements and implement validated lifecycle transitions.
-- [ ] Enforce role permissions and connect production completion to inventory posting.
+- [ ] Persist per-card model/points routing, requiredMaterials, dynamic productionStages, approvals, handovers and stage waste.
+- [ ] Supply authoritative BOM/points requirements and availability; define partial issue and replenishment rules.
+- [ ] Enforce role permissions, chronology, immutable completed stages, units/conversions and transactional lifecycle transitions server-side.
+- [ ] Persist durable activity history and prevent duplicate/replayed material issues or stock transfers.
+- [ ] Resolve finished-goods variant references and post accepted quantity as Stock IN with job/sales-order/customer/model/product/batch references.
+- [ ] Connect stage waste/recycling quantities to real Recycling transactions; keep quantities and units reconciled.
 
 ## Recycling
 

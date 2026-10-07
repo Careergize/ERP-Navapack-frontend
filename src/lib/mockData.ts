@@ -1,4 +1,5 @@
 import type { CostingRecord, Customer, Department, ExchangeRate, GranulesBatch, Item, JobCard, MasterUser, Model, SalesOrder, Supplier, TraceResult, WasteEntry } from "@/types";
+import { withJobCardDemo } from './jobCardDemo';
 
 export const MOCK_SALES_ORDERS: SalesOrder[] = [
   { id: "so-1", orderNumber: "SO-1042", customerName: "Kano Retail Group", date: "2026-09-15", status: "Open", jobCardIds: ["jc-1", "jc-2"] },
@@ -6,7 +7,7 @@ export const MOCK_SALES_ORDERS: SalesOrder[] = [
   { id: "so-3", orderNumber: "SO-1039", customerName: "Accra Distributors Ltd", date: "2026-09-10", status: "Completed", jobCardIds: ["jc-4"] },
 ];
 
-export const MOCK_JOB_CARDS: JobCard[] = [
+const BASE_JOB_CARDS: JobCard[] = [
   {
     id: "jc-1",
     jobCardNumber: "JC-2201",
@@ -72,6 +73,8 @@ export const MOCK_JOB_CARDS: JobCard[] = [
     ],
   },
 ];
+
+export const MOCK_JOB_CARDS: JobCard[] = BASE_JOB_CARDS.map(card => withJobCardDemo(card, MOCK_SALES_ORDERS));
 
 export const MOCK_TRACE_RESULTS: Record<string, TraceResult> = {
   "SO-1042": {

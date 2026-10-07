@@ -15,6 +15,10 @@ export type JobCardStatus =
   | "Approved"
   | "Issued"
   | "InProduction"
+  | "StoreIssuePending"
+  | "MaterialIssued"
+  | "OnHold"
+  | "ReadyForStock"
   | "Completed";
 
 export interface User {
@@ -66,6 +70,62 @@ export interface JobCard {
   status: JobCardStatus;
   department: string;
   stages: JobCardStageEntry[];
+  salesOrderNumber?: string;
+  customerName?: string;
+  product?: string;
+  specifications?: string;
+  productionRequirements?: string;
+  unit?: string;
+  createdDate?: string;
+  requiredDate?: string;
+  approval?: { approvedBy: string; approvedAt: string };
+  requiredMaterials?: JobCardMaterial[];
+  productionStages?: JobProductionStage[];
+  activityHistory?: JobCardActivity[];
+  acceptedQuantity?: number;
+  stockTransfer?: { quantity: number; unit: string; batchDate: string; confirmedBy: string; confirmedAt: string; jobCardId: string; salesOrderId: string; customerName: string; modelName: string; product: string };
+}
+
+export interface JobCardMaterial {
+  id: string;
+  materialId?: string;
+  name: string;
+  requiredQuantity: number;
+  issuedQuantity: number;
+  unit: string;
+}
+export type ProductionStageStatus = "Pending" | "Received" | "InProgress" | "Completed" | "OnHold";
+export interface JobProductionStage {
+  id: string;
+  name: string;
+  department: string;
+  sequence: number;
+  required: boolean;
+  kind: "production" | "stock";
+  legacyStage?: Stage;
+  status: ProductionStageStatus;
+  inputQuantity: number | null;
+  outputQuantity: number | null;
+  wasteQuantity: number | null;
+  inputUnit: string;
+  outputUnit: string;
+  wasteUnit: string;
+  startedAt?: string;
+  completedAt?: string;
+  operator: string;
+  remarks: string;
+  handover?: { quantity: number; unit: string; fromStageId: string };
+  wasteType?: string;
+  wasteReason?: string;
+  sentToRecycling?: number;
+}
+export interface JobCardActivity {
+  id: string;
+  timestamp: string;
+  action: string;
+  user: string;
+  department: string;
+  description: string;
 }
 
 export interface TraceResult {

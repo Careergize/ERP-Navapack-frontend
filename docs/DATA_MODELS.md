@@ -37,10 +37,12 @@ required = max(0, quantity - max(0, available)) when available is known. Rows in
 
 ## Production and trace (src/types/index.ts)
 
-JobCard: id, jobCardNumber, salesOrderId -> SalesOrder.id, modelName, qty, status, department and stages.
-JobCardStatus is Draft/PendingApproval/Approved/Issued/InProduction/Completed; these values do not imply implemented transitions.
-JobCardStageEntry: stage, sequenceOrder, required and Pending/InProgress/Complete status.
-Stage enumerates Extrusion/Printing/Packaging/Stock/Ready to Sale.
+JobCard retains id, jobCardNumber, salesOrderId, modelName, qty, status, department and legacy stages. Optional salesOrderNumber, customerName, product, specifications, productionRequirements, unit, createdDate, requiredDate, approval, requiredMaterials, productionStages, activityHistory, acceptedQuantity and stockTransfer support manufacturing tracking. Missing API quantities remain unrecorded; order references are resolved from existing SalesOrdersContext when available.
+JobCardStatus additionally supports StoreIssuePending, MaterialIssued, OnHold and ReadyForStock; legacy Issued is displayed as Material Issued. Delayed is derived from requiredDate and is not stored as a replacement status.
+JobCardMaterial contains id, optional exact raw materialId, name, requiredQuantity, issuedQuantity and unit. Availability is read only for an exact material/unit match; issue actions do not modify inventory.
+JobProductionStage contains id, free-form name/department, sequence, required, production/stock kind, optional legacyStage mapping, Pending/Received/InProgress/Completed/OnHold status, nullable input/output/waste quantities, independent input/output/waste units, startedAt/completedAt, operator, remarks, optional handover source/quantity/unit, wasteType, wasteReason and sentToRecycling. Waste rows, current location and final produced quantity are derived from these records, avoiding duplicate quantities and incompatible-unit totals.
+JobCardActivity contains id, timestamp, action, user, department and description. Stock transfer retains accepted quantity/unit, batch date, confirmation user/time, and job/sales-order/customer/model/product references. Neither is a permanent audit or inventory transaction.
+Legacy JobCardStageEntry remains stage, sequenceOrder, required and Pending/InProgress/Complete status. Stage still enumerates Extrusion/Printing/Packaging/Stock/Ready to Sale for existing modules; dynamic manufacturing stage names do not extend or hard-code this shared enum. Required flags and completed statuses stay synchronized for mapped legacy stages.
 TraceResult: traceId, SalesOrder/JobCard/MaterialBatch/GranulesBatch type, currentStatus, optional currentStage and label/timestamp history. Lookup results are API/mock data, not computed from Context records.
 
 ## Recycling and costing (src/types/index.ts)

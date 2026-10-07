@@ -12,6 +12,7 @@ import { StockPage } from "@/pages/Stocks/stocks";
 import { RawMaterialPage } from "@/pages/RawMaterials/RawMaterialPage";
 import { InventoryProvider } from "@/context/InventoryContext";
 import { ConsumablesProvider } from "@/context/ConsumablesContext";
+import { JobCardsProvider } from "@/context/JobCardsContext";
 import { ConsumablesPage } from "@/pages/Consumables/ConsumablesPage";
 
 import { RecyclingPage } from "@/pages/Recycling/RecyclingPage";
@@ -56,7 +57,7 @@ function AppRoutes() {
 export function App() {
   return (
     <AuthProvider>
-      <SalesOrdersProvider><InventoryProvider><ConsumablesProvider><AppRoutes /></ConsumablesProvider></InventoryProvider></SalesOrdersProvider>
+      <SalesOrdersProvider><InventoryProvider><ConsumablesProvider><JobCardsProvider><AppRoutes /></JobCardsProvider></ConsumablesProvider></InventoryProvider></SalesOrdersProvider>
     </AuthProvider>
   );
 }

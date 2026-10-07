@@ -4,7 +4,7 @@
 
 The application lives in navapack-frontend, which has its own Git repository and package.json. No backend code is present.
 
-src/main.tsx mounts React StrictMode and BrowserRouter. src/App.tsx composes AuthProvider, SalesOrdersProvider and InventoryProvider. RequireAuth checks the in-memory user; AppShell hosts nested routes and role-filtered navigation. Navigation visibility is not server authorization.
+src/main.tsx mounts React StrictMode and BrowserRouter. src/App.tsx composes AuthProvider, SalesOrdersProvider, InventoryProvider, ConsumablesProvider and JobCardsProvider. RequireAuth checks the in-memory user; AppShell hosts nested routes and role-filtered navigation. Navigation visibility is not server authorization.
 
 Routes: / (Dashboard), /sales-orders and /sales-orders/new, /job-cards and /job-cards/:id, /stock, /raw-materials, /recycling, /costing, /track-trace, /masters and /login. The new-order route opens the modal on the list page. Placeholder.tsx remains in source but is not wired to these module routes.
 
@@ -19,7 +19,7 @@ Demand reads each open line against current finished-goods stock independently; 
 Finished-goods reference -> lib/finishedGoodsData.ts -> InventoryContext movements -> Stock balances, movement history and monthly reports.
 Raw-material reference plus legacy demo granules -> lib/rawMaterialData.ts -> separate InventoryContext movements -> Virgin Material, Recycled Granules and Ink views.
 
-Both Context stores survive navigation and reset on refresh. Masters has page-local mock add/edit state; these edits do not update the separately imported customer/staff suggestions in sales orders. Job Cards, Recycling, Costing and Track & Trace use Axios with mock fallbacks. Dashboard uses its own static demo metrics rather than live Context totals.
+Both Context stores survive navigation and reset on refresh. Masters has page-local mock add/edit state; these edits do not update the separately imported customer/staff suggestions in sales orders. JobCardsContext lazily loads the existing list/detail APIs with mock fallback, normalizes legacy records and keeps manufacturing mutations in frontend state across routes. The existing stage-requirement PATCH remains available with explicit fallback; new approval/issue/stage/stock actions add no endpoints or inventory writes. Recycling, Costing and Track & Trace use Axios with mock fallbacks. Dashboard uses its own static demo metrics rather than live Context totals.
 
 Types are in src/types/index.ts and domain data/helper files. Balance functions and variant matching live alongside inventory types. Generated reference files contain workbook-derived records; extraction scripts require Python/openpyxl. Detailed FG interpretation is maintained in finished-goods-reference.md.
 
