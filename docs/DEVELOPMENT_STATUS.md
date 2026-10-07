@@ -7,8 +7,9 @@ Repository baseline: routed frontend pages exist for all nine modules. No backen
 - Dashboard: frontend/mock role-specific widgets and navigation; static metrics, not synchronized with orders/inventory. Backend pending.
 - Sales Orders: frontend/mock fast-entry multi-line form, validation, filters, sorting, pagination and CSV export; shared navigation-safe Context. Backend pending.
 - Job Cards: list/detail, stage display and Receptionist/Admin required-stage toggles; API reads/writes with mock/local fallback. Backend pending; lifecycle and persistence need review.
-- Stock: frontend/reference variant inventory, Stock IN/OUT, history, monthly reporting/export and open-order demand comparison. Backend pending.
-- Raw Material: frontend/reference category/family views, Stock IN/OUT, balances, movement history and monthly CSV reports. Backend pending.
+- Stock: frontend/reference variant inventory, Brand → Pieces → Packaging columns, optional pieces-per-package metadata, detailed Stock IN/OUT, history, monthly reporting/export and open-order demand comparison. Backend pending.
+- Raw Material: frontend/reference category/family views, combinable family/unit/status filters and search with reset, Stock in Hand labels, detailed Stock IN/OUT, balances, movement history and monthly CSV reports. Backend pending.
+- Consumables: frontend Add/Edit/View, Imported Spare/Local Spare categories, Each/Both/Litres/Kilos units, search/filter/reset, Stock IN/OUT and movement history. Starts empty; navigation-safe state resets on refresh. No Spare Parts module exists in this checkout. Backend pending.
 - Recycling: waste/granule read views and summaries; API/mock fallback. No intake/production posting workflow. Backend pending.
 - Costing: cost/rate read views and rate entry; API/mock/local fallback. No cost recalculation. Backend pending.
 - Track & Trace: search and history display; API lookup with seeded examples on failure. Backend pending.
@@ -41,3 +42,5 @@ Recycling and costing summary month labels do not filter loaded rows by month; D
 Documentation-only changes do not change application behavior. Use README commands for typecheck, build and the finished-goods data check; no lint setup exists.
 
 Baseline checks passed: TypeScript without emit, Vite production build to a temporary directory, finished-goods checks, Markdown links and Git whitespace checks. Standard npm run build could not write the existing tsconfig.tsbuildinfo (EPERM); the separate checks avoid that file. Vite reported a bundle-size warning.
+
+Inventory update verification: TypeScript passed using a temporary incremental cache; Vite production build and both inventory data-check scripts passed. Browser checks covered Consumables Add/Edit/View, categories/units, filters/reset, movement history and navigation-safe state; Raw Material combined search/filters and IN/OUT; Finished Goods pieces prefilling and IN/OUT. No browser console errors were captured in these workflows. Desktop/tablet layouts and mobile modal containment were inspected. The existing fixed-width sidebar remains limiting on narrow screens. Standard npm run build still hits the pre-existing tsconfig.tsbuildinfo EPERM; Vite still reports the existing bundle-size warning.

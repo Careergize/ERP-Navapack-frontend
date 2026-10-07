@@ -26,10 +26,16 @@ Balances = opening + IN - OUT, with six-decimal rounding. Monthly opening carrie
 
 Movement entry requires a selected product/material, date and positive finite quantity. The UI disallows dates before its reference opening date and fixes the unit from the selected record. Stock OUT exceeding the known balance warns but is currently allowed, so negative balances are possible. This is a simulation behavior; production enforcement needs a business decision.
 
+Finished Goods Pieces means optional pieces per package in this frontend. It is positive whole-number metadata, initially unrecorded, edited on Stock IN and read-only on Stock OUT. It does not multiply stock quantities or infer counts from packaging dimensions. Raw Material uses Stock in Hand only as a display label; balances and stored categories are unchanged.
+
 ## Finished Goods and source fidelity
 
 Categories are Carrier Bags, Flat Bags and Packing. Identity includes category, subgroup, customer, item details, size, brand, packing size and unit. Preserve stable IDs and source provenance; repeated identities must not be silently merged.
 Legacy name matching is accepted only when unique for the unit. See [source interpretation](finished-goods-reference.md) for customer inheritance, inferred units and unknown Packing balances.
+
+## Consumables
+
+Categories are Imported Spare and Local Spare; units are Each, Both, Litres and Kilos. New records require a name, opening date and nonnegative opening balance. Minimum level is optional and nonnegative. Balances use opening + IN - OUT, separately per item/unit. After movements exist, edits cannot change unit, opening balance or opening date. Stock OUT over balance warns and remains allowed, matching the existing inventory simulation.
 
 ## Raw Material
 

@@ -13,6 +13,7 @@ export interface FinishedGood {
   size: string;
   brand: string;
   packingSize: string;
+  pieces?: number | null; // Optional pieces per package; never converts ledger quantities.
   unit: string;
   openingStock: number | null;
   openingDate: string;

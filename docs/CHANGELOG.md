@@ -4,6 +4,9 @@
 
 ### Added
 
+- Consumables navigation and frontend Add/Edit/View, category/unit filters, Stock IN/OUT and movement history.
+- Raw Material Filter/reset controls with combined family/unit/status/search filtering, Stock in Hand wording and selected-record details in both stock forms.
+- Finished Goods Brand → Pieces → Packaging columns and CSV export; optional pieces per package entered on Stock IN and prefilled on Stock OUT without changing inventory calculations.
 - Code-verified documentation baseline for architecture, business rules, frontend models, development status and backend integration work.
 - Agent instructions requiring targeted documentation maintenance alongside meaningful changes.
 

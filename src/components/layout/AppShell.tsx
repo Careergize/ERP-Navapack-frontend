@@ -28,6 +28,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/job-cards", label: "Job Cards", icon: ClipboardList, roles: ["receptionist", "production_manager", "store_keeper", "production_operator", "admin"] },
   { to: "/stock", label: "Stock", icon: Boxes, roles: ["store_keeper", "admin"] },
   { to: "/raw-materials", label: "Raw Material", icon: Package, roles: ["store_keeper", "admin"] },
+  { to: "/consumables", label: "Consumables", icon: Package, roles: ["store_keeper", "admin"] },
   { to: "/recycling", label: "Recycling", icon: Recycle, roles: ["recycling_operator", "admin"] },
   { to: "/costing", label: "Costing", icon: Calculator, roles: ["accounts", "admin"] },
   { to: "/track-trace", label: "Track & Trace", icon: Search, roles: ["receptionist", "production_manager", "store_keeper", "production_operator", "recycling_operator", "accounts", "admin"] },

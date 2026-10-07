@@ -41,7 +41,7 @@ function downloadCsv(filename: string, lines: (string | number | null)[][]) {
 }
 
 export function StockPage() {
-  const { finishedMovements, addFinishedMovement } = useInventory();
+  const { finishedMovements, addFinishedMovement, finishedPieces, updateFinishedPieces } = useInventory();
   const [tab, setTab] = useState<Tab>('levels');
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [query, setQuery] = useState('');
@@ -71,10 +71,10 @@ export function StockPage() {
   ];
   const resetList = () => { setLimit(25); setExpanded(null); };
   const exportReport = () => downloadCsv(`finished-goods-${category}-${month}.csv`, [
-    ['Product ID', 'Product', 'Category', 'Customer', 'Size', 'Brand', 'Packing', 'Unit', 'Opening Stock', 'Total IN', 'Total OUT', 'Closing Stock'],
+    ['Product ID', 'Product', 'Category', 'Customer', 'Size', 'Brand', 'Pieces', 'Packaging', 'Unit', 'Opening Stock', 'Total IN', 'Total OUT', 'Closing Stock'],
     ...products.map(product => {
       const row = report.get(product.id)!;
-      return [product.id, finishedGoodName(product), FINISHED_CATEGORY_LABEL[product.category], product.customer, product.size, product.brand, product.packingSize, product.unit, row.openingStock, row.stockIn, row.stockOut, row.currentStock];
+      return [product.id, finishedGoodName(product), FINISHED_CATEGORY_LABEL[product.category], product.customer, product.size, product.brand, finishedPieces[product.id] ?? product.pieces ?? null, product.packingSize, product.unit, row.openingStock, row.stockIn, row.stockOut, row.currentStock];
     }),
   ]);
   const count = tab === 'movements' ? movements.length : products.length;
@@ -106,18 +106,18 @@ export function StockPage() {
             return <tr key={movement.id} className="hover:bg-gray-50"><td className={`${TD} whitespace-nowrap text-gray-500`}>{movement.date}</td><td className={TD}><ProductCell product={product} variant /></td><td className={TD}>{FINISHED_CATEGORY_LABEL[product.category]}</td><td className={TD}><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${movement.type === 'IN' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{movement.type}</span></td><td className={`${TD} text-right tabular-nums`}>{fmt(movement.quantity)}</td><td className={TD}>{movement.unit}</td><td className={TD}>{movement.reference || '—'}{movement.remarks && <p className="mt-1 text-xs text-gray-400">{movement.remarks}</p>}</td><td className={TD}>{movement.customer || '—'}</td></tr>;
           })}{!movements.length && <tr><td colSpan={8} className="p-10 text-center text-gray-500">No finished-goods movements match your filters.</td></tr>}</tbody>
         </table> : <table className="w-full min-w-[850px] text-left text-sm">
-          <thead className="border-b border-gray-200 bg-gray-50 text-xs text-gray-500"><tr>{(tab === 'levels' ? ['Product / Item', 'Category', 'Size', 'Brand', 'Packing', 'Current Stock', 'Unit', 'Status'] : ['Product / Variant', 'Category', 'Opening Stock', 'Total IN', 'Total OUT', 'Closing Stock', 'Unit', 'Details']).map(label => <th key={label} scope="col" className={TH}>{label}</th>)}</tr></thead>
+          <thead className="border-b border-gray-200 bg-gray-50 text-xs text-gray-500"><tr>{(tab === 'levels' ? ['Product / Item', 'Category', 'Size', 'Brand', 'Pieces', 'Packaging', 'Current Stock', 'Unit', 'Status'] : ['Product / Variant', 'Category', 'Opening Stock', 'Total IN', 'Total OUT', 'Closing Stock', 'Unit', 'Details']).map(label => <th key={label} scope="col" className={TH}>{label}</th>)}</tr></thead>
           <tbody className="divide-y divide-gray-100">{products.slice(0, limit).map(product => {
             const row = tab === 'report' ? report.get(product.id)! : balances.get(product.id)!;
             const daily = finishedMovements.filter(movement => movement.productId === product.id && movement.date.startsWith(month)).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
             return <Fragment key={product.id}>
               <tr className="hover:bg-gray-50"><td className={TD}><ProductCell product={product} variant={tab === 'report'} /></td><td className={`${TD} text-gray-500`}>{FINISHED_CATEGORY_LABEL[product.category]}</td>
-                {tab === 'levels' ? <><td className={TD}>{product.size || '—'}</td><td className={TD}>{product.brand || '—'}</td><td className={TD}>{product.packingSize || '—'}</td></> : [row.openingStock, row.stockIn, row.stockOut].map((value, index) => <td key={index} className={`${TD} text-right tabular-nums text-gray-600`}>{fmt(value)}</td>)}
+                {tab === 'levels' ? <><td className={TD}>{product.size || '—'}</td><td className={TD}>{product.brand || '—'}</td><td className={TD}>{fmt(finishedPieces[product.id] ?? product.pieces ?? null)}</td><td className={TD}>{product.packingSize || '—'}</td></> : [row.openingStock, row.stockIn, row.stockOut].map((value, index) => <td key={index} className={`${TD} text-right tabular-nums text-gray-600`}>{fmt(value)}</td>)}
                 <td className={`${TD} text-right font-semibold tabular-nums text-navy`}>{fmt(row.currentStock)}</td><td className={TD}>{product.unit}</td><td className={TD}>{tab === 'levels' ? <StockStatus quantity={row.currentStock} /> : <button type="button" aria-expanded={expanded === product.id} aria-controls={`daily-${product.id}`} aria-label={`Daily movements for ${finishedGoodLabel(product)}`} onClick={() => setExpanded(expanded === product.id ? null : product.id)} className="flex items-center gap-1 whitespace-nowrap text-xs font-medium text-navy hover:underline"><ChevronDown size={14} />Daily movements</button>}</td>
               </tr>
               {tab === 'report' && expanded === product.id && <tr><td colSpan={8} id={`daily-${product.id}`} className="bg-gray-50 p-4"><p className="mb-2 text-xs text-gray-500">Source: {product.sourceSheet}, row {product.sourceRow}. Reference opening: {product.openingDate}.</p>{daily.length ? <table aria-label={`Daily movements for ${finishedGoodLabel(product)}`} className="w-full text-left text-xs"><thead><tr>{['Date', 'Movement', 'Quantity', 'Unit', 'Reference', 'Customer / Destination'].map(label => <th scope="col" key={label} className="px-3 py-2 font-medium text-gray-500">{label}</th>)}</tr></thead><tbody>{daily.map(movement => <tr key={movement.id}><td className="px-3 py-2">{movement.date}</td><td className="px-3 py-2">{movement.type}</td><td className="px-3 py-2">{fmt(movement.quantity)}</td><td className="px-3 py-2">{movement.unit}</td><td className="px-3 py-2">{movement.reference || '—'}</td><td className="px-3 py-2">{movement.customer || '—'}</td></tr>)}</tbody></table> : <p className="text-sm text-gray-500">No daily movements in this month.</p>}</td></tr>}
             </Fragment>;
-          })}{!products.length && <tr><td colSpan={8} className="p-10 text-center text-gray-500">No finished goods match your filters.</td></tr>}</tbody>
+          })}{!products.length && <tr><td colSpan={tab === 'levels' ? 9 : 8} className="p-10 text-center text-gray-500">No finished goods match your filters.</td></tr>}</tbody>
         </table>}
         <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3 text-sm text-gray-500 print:hidden"><p aria-live="polite">Showing {Math.min(limit, count)} of {count}</p>{limit < count && <button type="button" onClick={() => setLimit(limit + 25)} className="font-medium text-navy hover:underline">Show more</button>}</div>
       </div>
@@ -125,10 +125,13 @@ export function StockPage() {
     <p className="text-xs text-gray-500">Frontend entries survive navigation and reset on refresh. Unrecorded opening balances remain unknown; sales orders do not deduct physical stock.</p>
     {direction && <InventoryMovementModal finishedGoods direction={direction} title="Finished Goods" categories={CATEGORIES} initialCategory={category === 'all' ? 'carrier-bags' : category}
       options={FINISHED_GOODS.map(product => ({ id: product.id, name: finishedGoodLabel(product), category: product.category, unit: product.unit, openingDate: product.openingDate, available: balances.get(product.id)!.currentStock,
+        pieces: finishedPieces[product.id] ?? product.pieces, customer: product.customer,
+        fields: [['Size', product.size || '—'], ['Brand', product.brand || '—'], ['Packaging', product.packingSize || '—'], ['Customer', product.customer || '—'], ['Opening Stock', fmt(balances.get(product.id)!.openingStock)], ['Stock IN', fmt(balances.get(product.id)!.stockIn)], ['Stock OUT', fmt(balances.get(product.id)!.stockOut)], ['Status', balances.get(product.id)!.currentStock === null ? 'Not recorded' : balances.get(product.id)!.currentStock! < 0 ? 'Negative balance' : balances.get(product.id)!.currentStock === 0 ? 'Out of stock' : 'In Stock']],
         detail: `${FINISHED_CATEGORY_LABEL[product.category]} · ${product.subgroup} · Source row ${product.sourceRow}` }))}
       onClose={() => setDirection(null)} onSave={entry => {
         const product = FINISHED_BY_ID.get(entry.materialId)!;
         addFinishedMovement({ productId: product.id, date: entry.date, type: direction, quantity: entry.quantity, unit: product.unit, reference: entry.reference, remarks: entry.remarks, customer: entry.customer });
+        if (direction === 'IN' && entry.pieces !== undefined) updateFinishedPieces(product.id, entry.pieces);
         setNotice(`Stock ${direction} recorded: ${fmt(entry.quantity)} ${product.unit} · ${finishedGoodLabel(product)}.`);
       }} />}
   </div>;

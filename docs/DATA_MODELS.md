@@ -13,6 +13,7 @@ totalPrice = round(quantity x unitPrice, 2); orderTotal = round(sum of rounded l
 ## Finished goods (src/lib/finishedGoodsData.ts)
 
 FinishedGood identifies a variant with id, category (carrier-bags/flat-bags/packing), subgroup, customer, itemDetails, size, brand, packingSize and unit.
+Optional pieces is a positive whole-number count per package; existing reference records leave it unrecorded. InventoryContext holds navigation-safe finishedPieces overrides by variant ID. Pieces never changes the ledger unit or quantity.
 openingStock is number or null; openingDate anchors the reference ledger. sourceSheet, sourceRow, sourceCustomer, customerInherited, sourceUnit, sourceClosingStock and dataNotes preserve provenance and ambiguity.
 
 FinishedGoodsMovement: id, productId -> FinishedGood.id, date, type (IN/OUT), quantity, unit; optional customer, reference and remarks.
@@ -62,3 +63,7 @@ MasterUser: id, name, email, role, optional department.
 User: id, name, role, optional department; held by AuthContext.
 Role: receptionist, production_manager, store_keeper, production_operator, recycling_operator, accounts or admin.
 Master page edits are page-local; name fields are not enforced foreign-key relationships.
+
+## Consumables (src/lib/consumableData.ts; ConsumablesContext)
+
+Consumable: id, name, imported/local category, Each/Both/Litres/Kilos unit, openingStock, openingDate and optional minLevel. ConsumableMovement: id, materialId, date, IN/OUT type, quantity, reference and remarks. ConsumablesContext owns empty initial masters and movements, validates additions and locks posted units/openings. State survives navigation and resets on refresh.

@@ -12,10 +12,16 @@ Planned work, not implemented APIs or database design. Check items only after ve
 ## Finished Goods Stock
 
 - [ ] Authoritative variant master retaining source provenance and repeated identities.
+- [ ] Confirm and persist optional pieces-per-package metadata independently of ledger quantities and units.
 - [ ] Transactional Stock IN/OUT, validation, balances and movement audit history.
 - [ ] Monthly reports and server-side demand projection.
 - [ ] Reconcile unknown Packing openings/dates and ambiguous source records before import.
 - [ ] Define cumulative reservations/allocation across competing orders.
+
+## Consumables
+
+- [ ] Persist consumable masters, categories, units, opening balances and stock movement audit history.
+- [ ] Validate dates, positive quantities and posted unit/opening immutability server-side.
 
 ## Raw Material
 

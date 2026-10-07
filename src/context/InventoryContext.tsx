@@ -4,6 +4,8 @@ import { RAW_MATERIALS, RAW_MOVEMENTS, type RawMaterialMovement } from '@/lib/ra
 
 interface InventoryContextValue {
   finishedMovements: FinishedGoodsMovement[];
+  finishedPieces: Record<string, number>;
+  updateFinishedPieces: (productId: string, pieces: number) => void;
   rawMovements: RawMaterialMovement[];
   addFinishedMovement: (movement: Omit<FinishedGoodsMovement, 'id'>) => void;
   addRawMovement: (movement: Omit<RawMaterialMovement, 'id'>) => void;
@@ -13,6 +15,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   // Same lifecycle as SalesOrdersContext: navigation-safe frontend simulation,
   // reset on refresh. Replace seed loading and add methods with API adapters later.
   const [finishedMovements, setFinished] = useState(FINISHED_MOVEMENTS);
+  const [finishedPieces, setFinishedPieces] = useState<Record<string, number>>({});
+  const updateFinishedPieces = (productId: string, pieces: number) => {
+    if (!FINISHED_BY_ID.has(productId) || !Number.isSafeInteger(pieces) || pieces <= 0) throw new Error('Invalid pieces');
+    setFinishedPieces(current => ({ ...current, [productId]: pieces }));
+  };
   const [rawMovements, setRaw] = useState(RAW_MOVEMENTS);
   const addFinishedMovement = (movement: Omit<FinishedGoodsMovement, 'id'>) => {
     const product = FINISHED_BY_ID.get(movement.productId);
@@ -24,7 +31,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     if (!material || material.category !== movement.category || material.unit !== movement.unit || !Number.isFinite(movement.quantity) || movement.quantity <= 0) throw new Error('Invalid raw material movement');
     setRaw(current => [...current, { ...movement, materialName: material.name, id: crypto.randomUUID() }]);
   };
-  return <InventoryContext.Provider value={{ finishedMovements, rawMovements, addFinishedMovement, addRawMovement }}>{children}</InventoryContext.Provider>;
+  return <InventoryContext.Provider value={{ finishedMovements, finishedPieces, updateFinishedPieces, rawMovements, addFinishedMovement, addRawMovement }}>{children}</InventoryContext.Provider>;
 }
 export function useInventory() {
   const context = useContext(InventoryContext);
