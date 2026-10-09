@@ -24,3 +24,12 @@ body {
   outline: 2px solid #2e7db5;
   outline-offset: 2px;
 }
+
+/* A customer estimate prints only its public projection, never the internal costing behind it. */
+@media print {
+  body:has(.customer-estimate) * { visibility: hidden; }
+  body:has(.customer-estimate) .customer-estimate,
+  body:has(.customer-estimate) .customer-estimate * { visibility: visible; }
+  body:has(.customer-estimate) .estimate-overlay { position: absolute; inset: 0; padding: 0; background: white; overflow: visible; }
+  body:has(.customer-estimate) .customer-estimate { box-shadow: none; margin: 0; max-width: none; width: 100%; }
+}

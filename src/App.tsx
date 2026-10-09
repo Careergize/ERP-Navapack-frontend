@@ -1,3 +1,7 @@
+import { ModelsProvider } from '@/context/ModelsContext';
+import { CostingProvider } from '@/context/CostingContext';
+import { InvoicesProvider } from '@/context/InvoicesContext';
+import { SalesOrderDetail } from '@/pages/SalesOrders/SalesOrderDetail';
 import { SalesOrdersProvider } from '@/context/SalesOrdersContext';
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
@@ -40,6 +44,7 @@ function AppRoutes() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/sales-orders" element={<SalesOrderList />} />
         <Route path="/sales-orders/new" element={<SalesOrderList />} />
+        <Route path="/sales-orders/:id" element={<SalesOrderDetail />} />
         <Route path="/job-cards" element={<JobCardList />} />
         <Route path="/job-cards/:id" element={<JobCardDetail />} />
         <Route path="/stock" element={<StockPage />} />
@@ -57,7 +62,7 @@ function AppRoutes() {
 export function App() {
   return (
     <AuthProvider>
-      <SalesOrdersProvider><InventoryProvider><ConsumablesProvider><JobCardsProvider><AppRoutes /></JobCardsProvider></ConsumablesProvider></InventoryProvider></SalesOrdersProvider>
+      <SalesOrdersProvider><ModelsProvider><InventoryProvider><CostingProvider><ConsumablesProvider><JobCardsProvider><InvoicesProvider><AppRoutes /></InvoicesProvider></JobCardsProvider></ConsumablesProvider></CostingProvider></InventoryProvider></ModelsProvider></SalesOrdersProvider>
     </AuthProvider>
   );
 }

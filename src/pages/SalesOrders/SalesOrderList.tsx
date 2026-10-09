@@ -1,3 +1,6 @@
+import { useInventory } from '@/context/InventoryContext';
+import { useJobCards } from '@/context/JobCardsContext';
+import { orderFulfillmentStatus } from '@/lib/fulfillment';
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Download, FileText, Info, Plus, Search, X } from "lucide-react";
@@ -78,10 +81,10 @@ function JobCardLinks({ order }: { order: SalesOrder }) {
   if (order.jobCardIds.length === 0) {
     return (
       <Link
-        to={`/job-cards/new?salesOrderId=${order.id}`}
+        to={`/sales-orders/${order.id}`}
         className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20 hover:bg-amber-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy"
       >
-        <Plus size={12} /> Allocate job card
+        <Plus size={12} /> View fulfillment
       </Link>
     );
   }
@@ -120,7 +123,11 @@ function TableSkeleton() {
 // ---------------------------------------------------------------------------
 
 export function SalesOrderList() {
-  const { orders } = useSalesOrders();
+  const { orders: sourceOrders } = useSalesOrders();
+  const { ledger } = useInventory();
+  const { cards, load } = useJobCards();
+  useEffect(() => { void load(); }, [load]);
+  const orders = useMemo(() => sourceOrders.map(order => ({ ...order, status: orderFulfillmentStatus(order, ledger, cards) })), [sourceOrders, ledger, cards]);
   const location = useLocation();
   const [showNewOrder, setShowNewOrder] = useState(location.pathname === '/sales-orders/new');
   const [success, setSuccess] = useState('');
@@ -143,7 +150,7 @@ export function SalesOrderList() {
   const stats = useMemo(
     () => ({
       total: orders.length,
-      awaitingJobCard: orders.filter((o) => o.jobCardIds.length === 0).length,
+      awaitingJobCard: orders.filter((o) => o.items?.some(i => i.fulfillmentSource === 'manufacturing') && o.jobCardIds.length === 0).length,
       withJobCards: orders.filter((o) => o.jobCardIds.length > 0).length,
       thisMonth: orders.filter((o) => isThisMonth(o.date)).length,
     }),

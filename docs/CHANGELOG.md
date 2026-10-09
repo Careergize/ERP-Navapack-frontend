@@ -17,3 +17,13 @@
 - Corrected README claims about module placeholders, backend integration and Android packaging to match the current repository.
 
 This baseline does not assign release dates or reconstruct feature history. Existing finished-goods source interpretation remains in finished-goods-reference.md.
+
+## 2026-10-09
+
+- Added manual per-line sales fulfillment, linked manufacturing drafts and shared QC receipt batches.
+- Added reservations, partial dispatch/reversal history, configurable invoices, trace links and reserved/available stock with custom history ranges.
+- Added fulfillment regression checks; all transactions remain session-only. See sales-fulfillment.md.
+
+## 2026-10-09 — Custom costing and routing
+
+Added shared revisioned custom models, per-line USD/UGX costing and markup comparisons, printable redacted estimates, separate approval/customer response, linked draft jobs and PM-controlled dynamic routing/reapproval. Added QC-prepared receipt mapping and explicit unavailable actual costing. Workbook ambiguities stay configurable. New regression checks cover costing/model/estimate/routing behavior; existing stock/sales checks remain passing. See [implementation notes](custom-costing-routing.md).

@@ -22,8 +22,9 @@ try {
   assert.equal(approved.status, 'StoreIssuePending');
   assert.equal(approved.approval.approvedBy, 'Test Admin');
   const optional = approved.productionStages.find(s => !s.required);
-  const configured = helpers.toggleJobStage(approved, optional.id, admin, now);
+  const configured = helpers.toggleJobStage(pending, optional.id, admin, now);
   assert.equal(configured.productionStages.find(s => s.id === optional.id).required, true);
+  assert.throws(() => helpers.toggleJobStage(approved, optional.id, admin, now));
   assert.equal(helpers.toggleJobStage(configured, optional.id, admin, now).productionStages.find(s => s.id === optional.id).required, false);
   assert.throws(() => helpers.approveJobCard(approved, admin, now));
   assert.throws(() => helpers.approveJobCard(pending, { ...admin, role: 'receptionist' }, now));

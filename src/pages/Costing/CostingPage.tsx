@@ -1,10 +1,12 @@
+import { CustomCosting } from './CustomCosting';
+import { useSearchParams } from 'react-router-dom';
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { MOCK_COSTING_RECORDS, MOCK_EXCHANGE_RATES } from "@/lib/mockData";
 import { Card } from "@/components/ui/Card";
 import type { CostingRecord, ExchangeRate } from "@/types";
 
-type View = "costing" | "rates";
+type View = "costing" | "rates" | "custom";
 type Currency = "USD" | "NGN" | "GHS" | "ZAR";
 
 const formatNumber = (value: number) => value.toLocaleString("en-IN");
@@ -12,7 +14,9 @@ const formatDate = (date: string) =>
   new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
 export function CostingPage() {
-  const [view, setView] = useState<View>("costing");
+  const [params] = useSearchParams();
+  const [view, setView] = useState<View>(params.has("orderId") ? "custom" : "costing");
+  useEffect(() => { if (params.has("orderId")) setView("custom"); }, [params]);
   const [records, setRecords] = useState<CostingRecord[]>([]);
   const [rates, setRates] = useState<ExchangeRate[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(true);
@@ -88,7 +92,7 @@ export function CostingPage() {
       </section>
 
       <div className="mt-6 inline-flex rounded-full bg-gray-100 p-1" role="tablist" aria-label="Costing views">
-        {(["costing", "rates"] as const).map((tab) => {
+        {(["costing", "custom", "rates"] as const).map((tab) => {
           const active = view === tab;
           return (
             <button
@@ -99,12 +103,13 @@ export function CostingPage() {
               onClick={() => setView(tab)}
               className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${active ? "bg-white text-navy shadow-sm" : "text-gray-500 hover:text-navy"}`}
             >
-              {tab === "costing" ? "Item/Model Costing" : "Exchange Rates"}
+              {tab === "costing" ? "Item/Model Costing" : tab === "custom" ? "Custom Costing & Estimates" : "Exchange Rates"}
             </button>
           );
         })}
       </div>
 
+      {view === "custom" && <div className="mt-4"><CustomCosting /></div>}
       {view === "costing" && (
         <div className="mt-4">
           {loadingRecords && <p className="text-sm text-gray-500">Loading costing records…</p>}

@@ -69,8 +69,9 @@ function event(card: JobCard, user: User, action: string, description: string, n
 export function approveJobCard(card: JobCard, user: User, now = new Date().toISOString()): JobCard {
   requireRole(user, ['production_manager', 'admin']);
   assert(['Draft', 'PendingApproval'].includes(card.status), 'This job card is already approved.');
+  assert(!card.requirementsReviewRequired, 'Recalculate/review requirements and costing before routing approval.');
   assert(productionStages(card).length, 'At least one production stage is required.');
-  return { ...card, status: 'StoreIssuePending', department: 'Store', approval: { approvedBy: user.name, approvedAt: now },
+  return { ...card, status: 'StoreIssuePending', department: 'Store', routingApproved: { revision: card.routingRevision ?? 1, stages: structuredClone(orderedStages(card)), materials: structuredClone(card.requiredMaterials ?? []), approvedBy: user.name, approvedAt: now }, approval: { approvedBy: user.name, approvedAt: now },
     activityHistory: event(card, user, 'Approved', 'Production Manager approved the job card and forwarded it for Store Issue.', now) };
 }
 export function issueJobMaterials(card: JobCard, quantities: Record<string, number>, available: Record<string, number | null>, user: User, now = new Date().toISOString()): JobCard {
@@ -100,6 +101,8 @@ export function updateJobStage(card: JobCard, id: string, update: StageUpdate, u
   assert(new Set(all.map(s => s.id)).size === all.length && new Set(all.map(s => s.sequence)).size === all.length && all.every(s => Number.isFinite(s.sequence) && s.sequence > 0), 'Stage IDs and sequence numbers must be unique and valid.');
   const stage = all.find(s => s.id === id);
   assert(stage && stage.required && stage.kind === 'production', 'Select a required production stage.');
+  const approvedStage = card.estimateId ? card.routingApproved?.stages.find(s => s.id === id) : undefined;
+  if (approvedStage) assert(update.inputUnit === approvedStage.inputUnit && update.outputUnit === approvedStage.outputUnit && update.wasteUnit === approvedStage.wasteUnit, 'Actual stage units must match the PM-approved routing.');
   assert(stage.status !== 'Completed', 'Completed stage records are locked.');
   const previous = all.filter(s => s.required && s.kind === 'production' && s.sequence < stage.sequence);
   assert(previous.every(s => s.status === 'Completed'), 'Complete the previous stages before updating this stage.');
@@ -142,18 +145,27 @@ export function updateJobStage(card: JobCard, id: string, update: StageUpdate, u
     return tracked ? { ...legacy, required: tracked.required, status: tracked.status === 'Completed' ? 'Complete' : ['InProgress', 'OnHold'].includes(tracked.status) ? 'InProgress' : 'Pending' } : legacy;
   }) };
 }
-export function transferJobToStock(card: JobCard, acceptedQuantity: number, batchDate: string, user: User, now = new Date().toISOString()): JobCard {
+export interface StockReceiptOptions { id: string; batch: string; rejected: number; qcVerified: boolean }
+export function transferJobToStock(card: JobCard, acceptedQuantity: number, batchDate: string, user: User, now = new Date().toISOString(), receipt?: StockReceiptOptions): JobCard {
   requireRole(user, ['store_keeper', 'admin']);
-  assert(card.status === 'ReadyForStock' && !card.stockTransfer, 'Only ready jobs can be transferred once.');
+  if (receipt && card.stockTransfers?.some(r => r.id === receipt.id)) return card;
+  assert(card.approval, 'Production Manager approval is required.');
+  assert(card.status === 'ReadyForStock' && (!card.stockTransfer || !!receipt), 'Only ready jobs can be transferred once.');
   const totals = productionTotals(card);
+  const previouslyAccepted = card.acceptedQuantity ?? 0, previouslyRejected = card.rejectedQuantity ?? 0;
+  const rejected = receipt?.rejected ?? Math.max(0, (totals.produced ?? 0) - acceptedQuantity);
+  if (receipt) assert(receipt.id && receipt.batch.trim() && receipt.qcVerified, 'Record a batch and confirm QC verification.');
+  assert(validQuantity(rejected) && previouslyAccepted + previouslyRejected + acceptedQuantity + rejected <= (totals.produced ?? 0), 'Accepted and rejected batches exceed produced quantity.');
+  const complete = Math.abs(previouslyAccepted + previouslyRejected + acceptedQuantity + rejected - (totals.produced ?? 0)) < 1e-6;
   assert(productionStages(card).every(s => s.status === 'Completed'), 'Complete all required production stages.');
-  assert(validQuantity(acceptedQuantity) && acceptedQuantity > 0 && totals.produced !== null && acceptedQuantity <= totals.produced && totals.unit, 'Accepted quantity must be positive and no greater than final output.');
+  assert(validQuantity(acceptedQuantity) && (acceptedQuantity > 0 || (!!receipt && rejected > 0)) && totals.produced !== null && acceptedQuantity <= totals.produced && totals.unit, 'Confirm positive accepted or rejected quantity; accepted quantity cannot exceed final output.');
   assert(/^\d{4}-\d{2}-\d{2}$/.test(batchDate) && Number.isFinite(Date.parse(batchDate)) && batchDate <= new Date(now).toLocaleDateString('en-CA') && (!card.createdDate || batchDate >= card.createdDate.slice(0, 10)), 'Choose a valid batch date between creation and today.');
-  return { ...card, status: 'Completed', department: 'Stock Keeping', acceptedQuantity,
+  return { ...card, status: complete ? 'Completed' : 'ReadyForStock', department: 'Stock Keeping', acceptedQuantity: previouslyAccepted + acceptedQuantity, rejectedQuantity: previouslyRejected + rejected,
+    stockTransfers: [...(card.stockTransfers ?? []), { id: receipt?.id ?? `receipt-${card.id}`, batch: receipt?.batch ?? `LOT-${card.jobCardNumber}`, quantity: acceptedQuantity, rejectedQuantity: rejected, date: batchDate }],
     stages: card.stages.map(stage => card.productionStages?.some(s => s.required && s.kind === 'stock' && s.legacyStage === stage.stage) ? { ...stage, status: 'Complete' } : stage),
     stockTransfer: { quantity: acceptedQuantity, unit: totals.unit, batchDate, confirmedBy: user.name, confirmedAt: now, jobCardId: card.id, salesOrderId: card.salesOrderId, customerName: card.customerName ?? '', modelName: card.modelName, product: card.product ?? card.modelName },
     productionStages: orderedStages(card).map(s => s.required && s.kind === 'stock' ? { ...s, status: 'Completed', inputQuantity: acceptedQuantity, outputQuantity: acceptedQuantity, wasteQuantity: 0, inputUnit: totals.unit, outputUnit: totals.unit, wasteUnit: totals.unit, operator: user.name, startedAt: now, completedAt: now } : s),
-    activityHistory: event(card, user, 'Finished quantity confirmed', `${fmtQuantity(acceptedQuantity, totals.unit)} confirmed for Stock Keeping. Frontend transfer only; no Finished Goods Stock IN posted.`, now) };
+    activityHistory: event(card, user, 'Finished quantity confirmed', `${fmtQuantity(acceptedQuantity, totals.unit)} confirmed for Stock Keeping. Verified transfer reference prepared; shared inventory posting is performed by JobCardsContext.`, now) };
 }
 export function editJobCard(card: JobCard, change: Pick<JobCard, 'modelName' | 'product' | 'specifications' | 'qty' | 'unit' | 'requiredDate' | 'productionRequirements'>, user: User, now = new Date().toISOString()): JobCard {
   requireRole(user, ['production_manager', 'admin']);
@@ -164,7 +176,7 @@ export function editJobCard(card: JobCard, change: Pick<JobCard, 'modelName' | '
 }
 export function toggleJobStage(card: JobCard, id: string, user: User, now = new Date().toISOString()): JobCard {
   requireRole(user, ['receptionist', 'production_manager', 'admin']);
-  assert(card.status !== 'Completed', 'Completed job card stage requirements are locked.');
+  assert(!card.approval && ['Draft', 'PendingApproval'].includes(card.status), 'Approved routing is locked; request an authorized revision before changing stages.');
   const stage = card.productionStages?.find(s => s.id === id);
   assert(stage && stage.status === 'Pending', 'Only pending stages can be added or removed.');
   if (stage.required && stage.kind === 'production') assert(productionStages(card).length > 1, 'Keep at least one required production stage.');

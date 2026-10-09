@@ -68,3 +68,11 @@ Sales Order -> Job Card -> Production -> Store Issue -> Finished Goods -> Dispat
 
 This is a decision checklist, not a proven posting sequence. Determine event ordering, exactly when demand becomes reservation, when raw materials are deducted, when finished goods are received/deducted, and how cancellation/reversal avoids duplicate posting.
 Sales Order creation itself must not deduct stock. Current demand comparison creates no reservations.
+
+## Sales fulfillment frontend boundary
+
+[Sales fulfillment](sales-fulfillment.md) now demonstrates linked demand/jobs/receipts/reservations/dispatches/invoices in session state. Backend work must supply atomic posting and reversal operations, idempotency, reservation locking, authoritative numbering/master identity, persistent invoice snapshots and server permissions. No new endpoints or API contracts are claimed. Confirm QC/locations/BOM yields/tax/credit notes/cancellations and partial stage rules before production use.
+
+## Custom costing and routing integration
+
+Persist revisioned models, line-linked estimates and immutable financial/routing snapshots with independent customer response. Enforce role/revision/concurrency checks server-side. Integrate atomic raw-material issue/consumption, actual process/expense costing and exact finished-variant configuration. Persist idempotent QC receipts and approved stage history without losing the frontend references. No new endpoint or schema was implemented. See [detailed boundaries](custom-costing-routing.md).

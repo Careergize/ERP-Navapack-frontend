@@ -31,6 +31,12 @@ export interface User {
 export type CustomerType = "B2B" | "B2C";
 export interface SalesOrderItem {
   id: string;
+  modelId?: string;
+  modelRevision?: number;
+  specifications?: string;
+  requiredDate?: string;
+  estimateId?: string;
+  fulfillmentSource?: "stock" | "manufacturing";
   itemId?: string;
   itemName: string;
   quantity: number;
@@ -40,6 +46,8 @@ export interface SalesOrderItem {
 }
 
 export interface SalesOrder {
+  taxRate?: number;
+  currency?: string;
   customerId?: string;
   marketingPersonName?: string;
   customerType?: CustomerType;
@@ -50,7 +58,7 @@ export interface SalesOrder {
   orderNumber: string;
   customerName: string;
   date: string;
-  status: "Open" | "Completed";
+  status: "Open" | "Completed" | "Draft" | "Approved" | "Reserved" | "In Production" | "Ready for Stock" | "Stock Received" | "Partially Dispatched" | "Dispatched" | "Cancelled";
   jobCardIds: string[];
 }
 
@@ -65,6 +73,16 @@ export interface JobCard {
   id: string;
   jobCardNumber: string;
   salesOrderId: string;
+  salesOrderItemId?: string;
+  finishedProductId?: string;
+  modelId?: string;
+  modelRevision?: number;
+  estimateId?: string;
+  estimateRevision?: number;
+  routingRevision?: number;
+  routingApproved?: { revision: number; stages: JobProductionStage[]; materials: JobCardMaterial[]; approvedBy: string; approvedAt: string };
+  routingApprovalHistory?: NonNullable<JobCard['routingApproved']>[];
+  requirementsReviewRequired?: boolean;
   modelName: string;
   qty: number;
   status: JobCardStatus;
@@ -83,6 +101,9 @@ export interface JobCard {
   productionStages?: JobProductionStage[];
   activityHistory?: JobCardActivity[];
   acceptedQuantity?: number;
+  rejectedQuantity?: number;
+  stockReceiptPending?: boolean;
+  stockTransfers?: { id: string; batch: string; quantity: number; rejectedQuantity: number; date: string }[];
   stockTransfer?: { quantity: number; unit: string; batchDate: string; confirmedBy: string; confirmedAt: string; jobCardId: string; salesOrderId: string; customerName: string; modelName: string; product: string };
 }
 
@@ -112,6 +133,11 @@ export interface JobProductionStage {
   wasteUnit: string;
   startedAt?: string;
   completedAt?: string;
+  machine?: string;
+  expectedInput?: number;
+  expectedOutput?: number;
+  plannedWastePercent?: number;
+  instructions?: string;
   operator: string;
   remarks: string;
   handover?: { quantity: number; unit: string; fromStageId: string };
@@ -189,6 +215,21 @@ export interface Item {
 export interface Model {
   id: string;
   name: string;
+  revision?: number;
+  category?: string;
+  description?: string;
+  specifications?: string;
+  dimensions?: string;
+  defaultUnit?: string;
+  recipe?: import('@/lib/customCosting').MaterialRecipe[];
+  recipeMode?: 'quantities' | 'percentages';
+  batchQuantity?: number;
+  batchUnit?: string;
+  processes?: import('@/lib/customCosting').ProcessCost[];
+  routing?: JobProductionStage[];
+  wastePercent?: number;
+  overheads?: number;
+  costingConfig?: { currency: 'USD' | 'UGX'; markupPercent: number; taxPercent: number };
   billOfMaterials: string;
   stages: Stage[];
 }

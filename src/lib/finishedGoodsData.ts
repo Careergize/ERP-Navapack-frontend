@@ -35,6 +35,14 @@ export interface FinishedGoodsMovement {
   customer?: string;
   reference?: string;
   remarks?: string;
+  salesOrderId?: string;
+  salesOrderItemId?: string;
+  jobCardId?: string;
+  modelId?: string;
+  modelName?: string;
+  batch?: string;
+  dispatchId?: string;
+  reversalOf?: string;
 }
 // TODO: Replace finished-goods mock data with backend inventory API.
 export const FINISHED_GOODS = FINISHED_GOODS_REFERENCE;
@@ -71,4 +79,14 @@ export function findFinishedGood(itemId: string | undefined, name: string, unit:
     (normalize(finishedGoodLabel(product)) === normalize(name) || normalize(product.itemDetails) === normalize(name)));
   // Never silently choose between different brands, customers or packing sizes.
   return matches.length === 1 ? matches[0] : undefined;
+}
+
+export function finishedRangeBalance(product: FinishedGood, movements: FinishedGoodsMovement[], from: string, to: string) {
+  const ledger = movements.filter(m => m.productId === product.id && m.unit === product.unit);
+  const inRange = ledger.filter(m => m.date >= from && m.date <= to);
+  const stockIn = round(inRange.filter(m => m.type === 'IN').reduce((sum, m) => sum + m.quantity, 0));
+  const stockOut = round(inRange.filter(m => m.type === 'OUT').reduce((sum, m) => sum + m.quantity, 0));
+  if (!from || !to || to < from || product.openingStock === null || from < product.openingDate) return { openingStock: null, stockIn, stockOut, currentStock: null };
+  const openingStock = round(product.openingStock + ledger.filter(m => m.date < from).reduce((sum, m) => sum + (m.type === 'IN' ? m.quantity : -m.quantity), 0));
+  return { openingStock, stockIn, stockOut, currentStock: round(openingStock + stockIn - stockOut) };
 }

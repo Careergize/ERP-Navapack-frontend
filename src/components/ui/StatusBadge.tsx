@@ -1,4 +1,9 @@
 const STATUS_STYLES: Record<string, string> = {
+  Reserved: "bg-blue/10 text-blue",
+  "Stock Received": "bg-green/10 text-green",
+  "Partially Dispatched": "bg-amber-50 text-amber-700",
+  Dispatched: "bg-green/10 text-green",
+  Cancelled: "bg-red-50 text-red-700",
   Draft: "bg-gray-100 text-gray-600",
   PendingApproval: "bg-navy/10 text-navy",
   Approved: "bg-blue/10 text-blue",

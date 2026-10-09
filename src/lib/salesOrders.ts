@@ -1,6 +1,8 @@
 import type { CustomerType, SalesOrder, SalesOrderItem } from '@/types';
 
 export interface SalesOrderDraft {
+  taxRate?: number;
+  currency?: string;
   customerId?: string;
   customerName: string;
   date: string;
@@ -21,9 +23,14 @@ export function validateOrder(draft: SalesOrderDraft) {
   if (!draft.marketingPersonName.trim()) errors.marketingPersonName = 'Marketing person is required.';
   if (!['B2B', 'B2C'].includes(draft.customerType)) errors.customerType = 'Select B2B or B2C.';
   if (!draft.date || !Number.isFinite(Date.parse(draft.date))) errors.date = 'A valid order date is required.';
+  if (draft.taxRate !== undefined && (!Number.isFinite(draft.taxRate) || draft.taxRate < 0 || draft.taxRate > 100)) errors.taxRate = 'Tax rate must be between 0 and 100.';
   if (!draft.items.length) errors.items = 'Add at least one item.';
+  if (!draft.currency?.trim()) errors.currency = 'Enter the transaction currency.';
+  if (draft.taxRate === undefined) errors.taxRate = 'Confirm the transaction tax rate (0 for no tax).';
   draft.items.forEach((item, i) => {
-    if (!item.itemId || !item.itemName.trim()) errors[`${i}.item`] = 'Select an item.';
+    if (!['stock', 'manufacturing'].includes(item.fulfillmentSource ?? '')) errors[`${i}.source`] = 'Select a fulfillment source.';
+    if ((!item.itemId && !(item.fulfillmentSource === 'manufacturing' && item.modelId)) || !item.itemName.trim()) errors[`${i}.item`] = 'Select an item.';
+    if (item.modelId && (!item.requiredDate || !Number.isFinite(Date.parse(item.requiredDate)) || item.requiredDate < draft.date)) errors[`${i}.item`] = 'Enter a required delivery date on or after the order date.';
     if (!Number.isFinite(item.quantity) || item.quantity <= 0) errors[`${i}.quantity`] = 'Quantity must be greater than 0.';
     if (!item.unit.trim()) errors[`${i}.unit`] = 'Select a unit.';
     if (!Number.isFinite(item.unitPrice) || item.unitPrice < 0) errors[`${i}.price`] = 'Price must be 0 or greater.';
@@ -42,7 +49,7 @@ export function buildSalesOrder(draft: SalesOrderDraft, existing: SalesOrder[]):
     customerName: draft.customerName.trim(), marketingPersonName: draft.marketingPersonName.trim(),
     requisitionOrder: draft.requisitionOrder.trim(), customerType: draft.customerType as CustomerType,
     items: draft.items.map(item => ({ ...item, totalPrice: lineTotal(item.quantity, item.unitPrice) })),
-    orderTotal: orderTotal(draft.items), status: 'Open', jobCardIds: [],
+    orderTotal: lineTotal(orderTotal(draft.items), 1 + (draft.taxRate ?? 0) / 100), status: 'Draft', jobCardIds: [],
   };
 }
 

@@ -9,7 +9,7 @@ This separates verified frontend behavior from decisions still needing confirmat
 - Multiple items are supported; at least one selected item with ID/name and unit is required.
 - Quantity must be finite and greater than zero. Editable unit price must be finite and nonnegative; zero is allowed.
 - Line total = quantity x unit price, rounded to two decimals. Order total sums rounded line totals and rounds to two decimals.
-- Requisition order is optional text. New orders start Open with no job-card links.
+- Requisition order is optional text. New orders start Draft with no job-card links. Fulfillment status is derived in the list/detail from ledger records.
 - The form warns when requested quantity exceeds stock; this does not block an order.
 
 ## Inventory terminology and posting
@@ -17,14 +17,14 @@ This separates verified frontend behavior from decisions still needing confirmat
 Stock means Finished Goods only. Raw Material is separate production input inventory, classified as Virgin Material, Recycled Granules or Ink.
 Stock IN/OUT belongs to the module where it is recorded.
 
-Creating a Sales Order creates demand only: no physical Stock OUT and no actual reservation. Never double-deduct stock.
-Each open line compares independently with the full current stock; competing lines are not cumulatively allocated.
+Creating a Sales Order creates demand only: no physical Stock OUT and no automatic reservation. Explicit allocation is a separate operation. Never double-deduct stock.
+Demand comparisons use unreserved stock; explicit allocation validates competing reservations cumulatively.
 Required Qty = max(0, ordered quantity - max(0, available stock)).
 Unknown stock, unlinked items and unit mismatches have no calculated shortage.
 
 Balances = opening + IN - OUT, with six-decimal rounding. Monthly opening carries forward earlier movements; monthly IN/OUT use the selected month. Unknown opening or a month before the reference opening date produces an unknown balance, not zero. Do not add incompatible units.
 
-Movement entry requires a selected product/material, date and positive finite quantity. The UI disallows dates before its reference opening date and fixes the unit from the selected record. Stock OUT exceeding the known balance warns but is currently allowed, so negative balances are possible. This is a simulation behavior; production enforcement needs a business decision.
+Movement entry requires a selected product/material, date and positive finite quantity. The UI disallows dates before its reference opening date and fixes the unit from the selected record. Finished Goods OUT is blocked beyond known unreserved reference stock. Raw Material and Consumables retain their existing warning behavior.
 
 Finished Goods Pieces means optional pieces per package in this frontend. It is positive whole-number metadata, initially unrecorded, edited on Stock IN and read-only on Stock OUT. It does not multiply stock quantities or infer counts from packaging dimensions. Raw Material uses Stock in Hand only as a display label; balances and stored categories are unchanged.
 
@@ -45,11 +45,15 @@ Workbook references supply input inventory; legacy recycled-granule demo records
 
 ## Production and other modules
 
-Job Cards render ordered production-stage arrays per card/model. Legacy stage choices remain compatible; Receptionist, Production Manager and Admin can toggle pending stage requirements without changing model defaults. Active/completed stage records and completed jobs are protected; stages cannot be inserted before production already received or started. No drag/reordering feature is claimed.
-Production Manager/Admin edit pending job fields and approve into StoreIssuePending, recording approval user/time. Store Keeper/Admin record full or partial material issues against remaining requirements; known availability limits each entry, unknown availability remains explicitly unrecorded. Partial issue permits production, but replenishment after production starts is not implemented. Requirements are supplied frontend data, not an automatic BOM/model-points calculation.
+Job Cards render ordered production-stage arrays per card/model. Legacy stage choices remain compatible; Receptionist, Production Manager and Admin can toggle pending stage requirements without changing model defaults. Active/completed stage records and completed jobs are protected; stages cannot be inserted before production already received or started. PM/Admin can add/remove/reorder draft custom routing; approved routing is locked and reapproval is limited to before issue/production.
+Production Manager/Admin edit pending job fields and approve into StoreIssuePending, recording approval user/time. Store Keeper/Admin record full or partial material issues against remaining requirements; known availability limits each entry, unknown availability remains explicitly unrecorded. Partial issue permits production, but replenishment after production starts is not implemented. Legacy requirements are supplied frontend data; custom requirements derive from explicit revisioned recipe quantities and units, with PM review.
 Production Operator/Production Manager/Admin record nonnegative stage quantities and valid timestamps. Previous required production stages must be complete. Completion passes output to the next stage: matching-unit input is prefilled/locked; differing-unit input requires explicit entry without an assumed conversion. Output/waste consistency and optional waste calculation apply only to matching units. Recycling quantity cannot exceed stage waste; no Recycling entry is posted.
-All required production stages complete -> ReadyForStock. Produced quantity is final-stage output, not the sum of outputs across stages; waste totals stay separated by unit. Store Keeper/Admin confirms a positive accepted quantity up to final output and a valid batch date -> Completed. This prepares frontend transfer references only; no raw stock deduction or Finished Goods Stock IN occurs.
+All required production stages complete -> ReadyForStock. Produced quantity is final-stage output, not the sum of outputs across stages; waste totals stay separated by unit. Store Keeper/Admin confirms a positive accepted quantity up to final output and a valid batch date -> Completed. Linked jobs post accepted Finished Goods IN to shared session state after explicit QC confirmation. Partial receipt batches retain ReadyForStock until output is accounted for; raw stock remains unchanged. Unlinked legacy jobs cannot post a guessed product.
 Delayed means browser-local today is later than requiredDate and the job is not Completed. It is a separate warning. Completed jobs retain all materials/stages/waste/history. JobCardsContext changes survive navigation and reset on refresh; new manufacturing actions are local only. Existing GET list/detail and PATCH stage requirements keep their existing endpoints, with explicit frontend fallback on failed writes.
 Recycling currently displays waste and granule records; it does not post raw-material movements.
-Costing displays supplied totals; entering an exchange rate does not recalculate existing costing records.
-Confirm reservation, store issue, production completion and dispatch posting rules before backend work; the full inventory lifecycle is not implemented.
+Legacy Costing displays supplied totals; entering a legacy exchange rate does not recalculate existing records. Custom costing calculates entered recipe/process costs and freezes exchange rates in estimate revisions.
+See [sales fulfillment rules and unresolved decisions](sales-fulfillment.md) for the implemented frontend reservation/dispatch/receipt workflow and backend limitations.
+
+## Custom costing and routing
+
+Custom lines are independent; repeated linked Job Card creation is idempotent per line. Recipes use actual quantities or proportions × explicit batch, with no inferred pieces/cartons-to-mass conversion. Rates, FX, costs, taxes and charges are entered configuration; workbook examples do not define permanent rates. Markup and gross margin remain distinct. Generated, job-linked or approved financial snapshots require a new revision for edits. Internal costing approval and customer acceptance are separate. PM/Admin may change routing before approval; approval freezes route/material snapshots. Routing changes mark costing for review; reapproval is available only before issue/production. Store issue remains frontend tracking. QC accepted output requires exact variant/unit mapping before frontend Stock IN. Actual Cost/Variance remain unavailable until consumption and expense data exist. See [rules, roles and workbook ambiguities](custom-costing-routing.md).

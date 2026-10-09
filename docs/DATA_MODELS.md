@@ -8,7 +8,7 @@ SalesOrder: id, orderNumber, customerName, date, Open/Completed status and jobCa
 SalesOrderItem: id, optional itemId (finished-goods variant reference), itemName, quantity, unit, unitPrice and totalPrice.
 SalesOrderDraft contains form customer/date/marketing/type/requisition fields and items; customerType temporarily permits an empty value.
 New orders get a UUID-derived ID and locally generated SO number (maximum numeric suffix + 1).
-totalPrice = round(quantity x unitPrice, 2); orderTotal = round(sum of rounded line totals, 2). orderSummary currently returns identical subtotal/total, without tax or discount calculation.
+totalPrice = round(quantity x unitPrice, 2); orderTotal = round(sum of rounded line totals, 2). orderSummary returns the pre-tax subtotal; buildSalesOrder applies transaction tax to the order total. Invoice discounts/tax are calculated independently on selected dispatches.
 
 ## Finished goods (src/lib/finishedGoodsData.ts)
 
@@ -69,3 +69,11 @@ Master page edits are page-local; name fields are not enforced foreign-key relat
 ## Consumables (src/lib/consumableData.ts; ConsumablesContext)
 
 Consumable: id, name, imported/local category, Each/Both/Litres/Kilos unit, openingStock, openingDate and optional minLevel. ConsumableMovement: id, materialId, date, IN/OUT type, quantity, reference and remarks. ConsumablesContext owns empty initial masters and movements, validates additions and locks posted units/openings. State survives navigation and resets on refresh.
+
+## Sales fulfillment extensions
+
+See [sales-fulfillment.md](sales-fulfillment.md) for extended line/order/job/movement fields and Allocation, Dispatch, FulfillmentLedger, Invoice and receipt interfaces. Tax/currency are transaction fields; invoice snapshots are separate from physical stock events. InventoryContext owns all finished movements/reservations/dispatches. Multiple receipt batches retain stable source/request IDs.
+
+## Custom costing and routing additions
+
+Revisioned Model recipes/processes/routing and CostEstimate input/totals/approval/customer-response snapshots are session models. Order lines retain model/revision/specification/delivery/estimate references; Job Cards retain model/estimate/routing revisions, approved material/route snapshots and reapproval history. Production stages carry machine, expected quantities/units, planned waste and instructions. Unmapped QC output may retain stockReceiptPending until an exact finished variant is selected. See [field and formula details](custom-costing-routing.md).

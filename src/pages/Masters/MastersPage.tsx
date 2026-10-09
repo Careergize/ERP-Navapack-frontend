@@ -1,6 +1,8 @@
+import { useModels } from '@/context/ModelsContext';
+import { ModelManager } from './ModelManager';
 import { useState } from "react";
 import { MasterTable, type MasterColumn } from "@/pages/Masters/MasterTable";
-import { MOCK_CUSTOMERS, MOCK_DEPARTMENTS, MOCK_ITEMS, MOCK_MODELS, MOCK_SUPPLIERS, MOCK_USERS } from "@/lib/mockData";
+import { MOCK_CUSTOMERS, MOCK_DEPARTMENTS, MOCK_ITEMS, MOCK_SUPPLIERS, MOCK_USERS } from "@/lib/mockData";
 import type { Customer, Department, Item, MasterUser, Model, Supplier } from "@/types";
 
 type MasterKey = "items" | "models" | "customers" | "suppliers" | "departments" | "users";
@@ -48,7 +50,7 @@ const CONFIG_COLUMNS: Record<MasterKey, MasterColumn[]> = {
 export function MastersPage() {
   const [selected, setSelected] = useState<MasterKey>("items");
   const [items, setItems] = useState<Item[]>(MOCK_ITEMS);
-  const [models, setModels] = useState<Model[]>(MOCK_MODELS);
+  const { models } = useModels();
   const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
   const [suppliers, setSuppliers] = useState<Supplier[]>(MOCK_SUPPLIERS);
   const [departments, setDepartments] = useState<Department[]>(MOCK_DEPARTMENTS);
@@ -65,7 +67,7 @@ export function MastersPage() {
 
   function addRow(row: MasterData) {
     if (selected === "items") setItems((current) => [...current, row as Item]);
-    if (selected === "models") setModels((current) => [...current, row as Model]);
+
     if (selected === "customers") setCustomers((current) => [...current, row as Customer]);
     if (selected === "suppliers") setSuppliers((current) => [...current, row as Supplier]);
     if (selected === "departments") setDepartments((current) => [...current, row as Department]);
@@ -74,7 +76,7 @@ export function MastersPage() {
 
   function editRow(row: MasterData) {
     if (selected === "items") setItems((current) => current.map((item) => item.id === row.id ? row as Item : item));
-    if (selected === "models") setModels((current) => current.map((item) => item.id === row.id ? row as Model : item));
+
     if (selected === "customers") setCustomers((current) => current.map((item) => item.id === row.id ? row as Customer : item));
     if (selected === "suppliers") setSuppliers((current) => current.map((item) => item.id === row.id ? row as Supplier : item));
     if (selected === "departments") setDepartments((current) => current.map((item) => item.id === row.id ? row as Department : item));
@@ -97,13 +99,13 @@ export function MastersPage() {
           })}
         </nav>
 
-        <MasterTable
+        {selected === "models" ? <ModelManager /> : <MasterTable
           title={config.label}
           columns={config.columns}
           rows={config.rows}
           onAdd={addRow}
           onEdit={editRow}
-        />
+        />}
       </div>
     </div>
   );

@@ -19,7 +19,7 @@ Demand reads each open line against current finished-goods stock independently; 
 Finished-goods reference -> lib/finishedGoodsData.ts -> InventoryContext movements -> Stock balances, movement history and monthly reports.
 Raw-material reference plus legacy demo granules -> lib/rawMaterialData.ts -> separate InventoryContext movements -> Virgin Material, Recycled Granules and Ink views.
 
-Both Context stores survive navigation and reset on refresh. Masters has page-local mock add/edit state; these edits do not update the separately imported customer/staff suggestions in sales orders. JobCardsContext lazily loads the existing list/detail APIs with mock fallback, normalizes legacy records and keeps manufacturing mutations in frontend state across routes. The existing stage-requirement PATCH remains available with explicit fallback; new approval/issue/stage/stock actions add no endpoints or inventory writes. Recycling, Costing and Track & Trace use Axios with mock fallbacks. Dashboard uses its own static demo metrics rather than live Context totals.
+Both Context stores survive navigation and reset on refresh. Non-model Masters have page-local mock add/edit state; these edits do not update the separately imported customer/staff suggestions in sales orders. JobCardsContext lazily loads the existing list/detail APIs with mock fallback, normalizes legacy records and keeps manufacturing mutations in frontend state across routes. The existing stage-requirement PATCH remains available with explicit fallback; approval/issue/stage actions remain local, and linked stock confirmations now post to InventoryContext without new endpoints. Recycling, Costing and Track & Trace use Axios with mock fallbacks. Dashboard uses its own static demo metrics rather than live Context totals.
 
 Types are in src/types/index.ts and domain data/helper files. Balance functions and variant matching live alongside inventory types. Generated reference files contain workbook-derived records; extraction scripts require Python/openpyxl. Detailed FG interpretation is maintained in finished-goods-reference.md.
 
@@ -34,3 +34,11 @@ Replace Context seed loading/create/add methods with API adapters while preservi
 Existing client calls in lib/api.ts and module pages expect authentication, job-card reads/stage writes, recycling reads, costing/rate reads and writes, and trace lookup. They are not documented as implemented server contracts. Verify response shapes and error handling against the eventual backend; failed stage/rate writes currently retain local changes.
 
 Define authoritative inventory posting, reservations, statuses and permissions before integrating production or dispatch. See BACKEND_TODO.md.
+
+## Sales fulfillment
+
+`/sales-orders/:id` connects existing stores. InventoryContext owns finished receipts, reservations and dispatch/reversal transactions. JobCardsContext posts validated QC receipts; SalesOrdersContext owns stable order/job links; InvoicesContext owns snapshots without moving stock. Pure helpers live in fulfillment.ts, salesJob.ts and invoices.ts. See [workflow limitations](sales-fulfillment.md).
+
+## Custom costing and routing
+
+ModelsContext and CostingContext provide shared, session-only versioned model/estimate state upstream of JobCardsContext. Existing order/job/inventory stores remain connected. ModelManager replaces page-local model editing; other master categories retain their previous behavior. CustomCosting extends the existing Costing page while preserving legacy record/rate calls. Dynamic routing uses domain helpers and approved snapshots rather than a fixed component route. See [implementation and boundaries](custom-costing-routing.md).
